@@ -5,6 +5,22 @@ import requests
 import hashlib
 import secrets
 from math import gcd
+import time
+import requests
+
+def wait_for_server(url="http://127.0.0.1:8000/docs", timeout=10):
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            res = requests.get(url)
+            if res.status_code == 200:
+                return True
+        except requests.exceptions.ConnectionError:
+            time.sleep(0.5)
+    raise RuntimeError("Server failed to start within timeout period.")
+
+# Call before running test suites
+wait_for_server()
 
 BASE_URL = "http://127.0.0.1:8000"
 
