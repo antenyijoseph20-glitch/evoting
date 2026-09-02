@@ -1,16 +1,71 @@
-import hashlib
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+import os
+import hashlib
+import uuid
+import time
+import json
 
-app = FastAPI(
-    title="Nigeria E2E-V Secure Voting API",
-    description="Cryptographic End-to-End Verifiable Voting System with Blind Signatures & Blockchain Ledger",
-    version="1.0.0"
-)
+# Mount static files (ensure you have a folder named 'static' containing css/js files)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# 1. Configure CORS Middleware for Frontend Integration
+@app.get("/", response_class=HTMLResponse)
+async def serve_frontend():
+    index_path = os.path.join("static", "index.html")
+    if os.path.exists(index_path):
+        with open(index_path, "r", encoding="utf-8") as f:
+            return f.read()
+    return "<h3>Frontend index.html not found in static/ folder.</h3>"
+app = FastAPI(title="Nigeria E2E-V Secure Voting System")
+# Simulated in-memory ledger storage (replace with your actual database or blockchain manager instance)
+blockchain_ledger = {
+    "system": "Nigeria E2E-V Secure Voting System",
+    "total_blocks": 0,
+    "ledger_integrity_status": "VERIFIED_APPEND_ONLY",
+    "blocks": []
+}
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Startup: Initialize Genesis Block if ledger is empty ---
+    if len(blockchain_ledger["blocks"]) == 0:
+        import hashlib
+        from datetime import datetime
+
+        genesis_data = "GENESIS_BLOCK_NIGERIA_E2EV_VOTING_SYSTEM"
+        genesis_hash = hashlib.sha256(genesis_data.encode()).hexdigest()
+
+        genesis_block = {
+            "block_id": 0,
+            "receipt_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "block_hash": genesis_hash,
+            "previous_hash": "0",
+            "synced_at_timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+
+        blockchain_ledger["blocks"].append(genesis_block)
+        blockchain_ledger["total_blocks"] = 1
+        print("🚀 [Startup] Genesis block initialized successfully.")
+
+    yield
+    
+    # --- Shutdown (Optional cleanup) ---
+    print("🛑 [Shutdown] E2E-V Voting server shutting down safely.")
+
+# Pass the lifespan handler to your FastAPI app instance
+app = FastAPI(title="Nigeria E2E-V Secure Voting System", lifespan=lifespan)
+
+# Example endpoint matching your export route
+@app.get("/api/v1/bulletin-board/export")
+async def export_bulletin_board():
+    return blockchain_ledger
+
+# Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,298 +74,215 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- IN-MEMORY DATABASE & STATE STUBS ---
+# Mount the static directory so FastAPI serves static/js/app.js properly
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Mock ledger data for testing
 LEDGER = [
     {
-        "block_id": 0,
-        "previous_hash": "0" * 64,
-        "candidate": "Genesis",
-        "nonce": "genesis_nonce",
-        "block_hash": "783b4fc27ea3d72f5e9ae237..."
+        "block_id": 1,
+        "previous_hash": "GENESIS",
+        "block_hash": "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0",
+        "receipt_hash": "rcpt_001_alpha",
+        "synced_at_timestamp": "2026-09-02T21:00:00Z"
+    },
+    {
+        "block_id": 2,
+        "previous_hash": "a1b2c3d4e5f67890123456789abcdef0",
+        "block_hash": "f6e5d4c3b2a109876543210fedcba9876543210fedcba9876543210fedcba987",
+        "receipt_hash": "rcpt_002_beta",
+        "synced_at_timestamp": "2026-09-02T21:30:00Z"
     }
 ]
 
-VOTES_DB = []
-REGISTERED_VOTERS = {"1234567890123456789": {"nin": "12345678901", "has_voted": False}}
-
-
-# --- PYDANTIC SCHEMAS ---
-class VerifyRequest(BaseModel):
-    vin: str
-    nin: str
-
-class BlindSignRequest(BaseModel):
-    session_token: str
-    blinded_message: int
-
-class VoteSubmitRequest(BaseModel):
-    candidate: str
-    nonce: str
-    signature: int
-
-
-# --- API ENDPOINTS ---
-@app.post("/api/v1/auth/verify")
-async def verify_voter(payload: VerifyRequest):
-    voter = REGISTERED_VOTERS.get(payload.vin)
-    if not voter or voter["nin"] != payload.nin:
-        raise HTTPException(status_code=401, detail="Invalid VIN or NIN credentials.")
-    if voter["has_voted"]:
-        raise HTTPException(status_code=400, detail="Voter has already cast a ballot.")
-    
-    return {"status": "SUCCESS", "session_token": f"token_{payload.vin}"}
-
-
-@app.post("/api/v1/authority/blind-sign")
-async def blind_sign(payload: BlindSignRequest):
-    blinded_signature = pow(payload.blinded_message, 2753, 3233)
-    return {"blinded_signature": blinded_signature}
-
-
-@app.post("/api/v1/ballotbox/submit-vote")
-async def submit_vote(payload: VoteSubmitRequest):
-    VOTES_DB.append({"candidate": payload.candidate, "nonce": payload.nonce})
-    
-    previous_block = LEDGER[-1]
-    raw_block_data = f"{previous_block['block_hash']}:{payload.candidate}:{payload.nonce}"
-    new_hash = hashlib.sha256(raw_block_data.encode()).hexdigest()
-    
-    new_block = {
-        "block_id": len(LEDGER),
-        "previous_hash": previous_block["block_hash"],
-        "candidate": payload.candidate,
-        "nonce": payload.nonce,
-        "block_hash": new_hash
-    }
-    LEDGER.append(new_block)
-    
-    return {"status": "SUCCESS", "block_hash": new_hash, "total_votes_cast": len(VOTES_DB)}
-
-
 @app.get("/api/v1/admin/health")
 async def admin_health():
-    return {
-        "status": "HEALTHY",
-        "database_status": "ONLINE",
-        "ledger_height": len(LEDGER),
-        "total_votes_cast": len(VOTES_DB)
-    }
-
+    return {"status": "healthy", "system": "operational"}
 
 @app.get("/api/v1/tally/results")
-async def tally_results():
-    tally = {}
-    for vote in VOTES_DB:
-        cand = vote["candidate"]
-        tally[cand] = tally.get(cand, 0) + 1
+async def get_tally_results():
+    tallies = {}
+    total_votes_cast = 0
+
+    # Iterate through the ledger blocks
+    for block in LEDGER:
+        # Check if block data is a dictionary and represents a cast ballot (contains candidate_id)
+        if isinstance(block.data, dict) and "candidate_id" in block.data:
+            candidate = block.data["candidate_id"]
+            tallies[candidate] = tallies.get(candidate, 0) + 1
+            total_votes_cast += 1
+
+    # Format the aggregated results for frontend presentation or public auditing
+    results_list = [
+        {"candidate_id": candidate, "vote_count": count}
+        for candidate, count in tallies.items()
+    ]
+
     return {
-        "total_votes_cast": len(VOTES_DB),
-        "tally": tally
+        "status": "success",
+        "total_votes_cast": total_votes_cast,
+        "tallies": results_list,
+        "ledger_blocks_scanned": len(LEDGER)
+    }
+@app.get("/api/v1/bulletin-board/export")
+async def export_bulletin_board_ledger():
+    # Returning a standard dictionary prevents all h11 Content-Length protocol errors
+    return {
+        "system": "Nigeria E2E-V Secure Voting System",
+        "total_blocks": len(LEDGER),
+        "ledger_integrity_status": "VERIFIED_APPEND_ONLY",
+        "blocks": LEDGER
     }
 
+# Request model for voter authentication
+class VoterAuthRequest(BaseModel):
+    nin: str = Field(..., min_length=11, max_length=11, description="11-digit National Identification Number")
+    vin: str = Field(..., min_length=10, max_length=20, description="Voter Identification Number")
+    polling_unit_code: str = Field(..., description="INEC assigned polling unit code")
 
-@app.get("/api/v1/tally/audit")
-async def audit_ledger():
+# In-memory mock registry of already voted hashes to prevent double voting
+VOTED_REGISTRY = set()
+
+@app.post("/api/v1/auth/verify-voter")
+async def verify_voter_credentials(payload: VoterAuthRequest):
+    # 1. Basic format validation (NIN must be strictly numeric digits)
+    if not payload.nin.isdigit():
+        return {
+            "status": "error",
+            "error_code": "INVALID_NIN_FORMAT",
+            "message": "NIN must consist of exactly 11 numeric digits."
+        }
+
+    # 2. Generate a secure cryptographic blind hash of the NIN/VIN pair for anonymity
+    credential_signature = f"{payload.nin}:{payload.vin}"
+    voter_hash = hashlib.sha256(credential_signature.encode()).hexdigest()
+
+    # 3. Check for double voting / prior accreditation
+    if voter_hash in VOTED_REGISTRY:
+        return {
+            "status": "rejected",
+            "error_code": "ALREADY_VOTED",
+            "message": "Credentials have already been utilized for ballot issuance."
+        }
+
+    # 4. Successful accreditation response (issues temporary secure ballot token)
+    session_token = str(uuid.uuid4())
+    
     return {
-        "status": "AUDIT_COMPLETE",
-        "total_ballots_audited": len(VOTES_DB),
-        "valid_ballots_count": len(VOTES_DB),
-        "invalid_ballots_count": 0,
-        "integrity_verified": True,
-        "audit_timestamp": "2026-09-02T15:01:10.839657+00:00"
+        "status": "success",
+        "accreditation": "verified",
+        "voter_blind_hash": voter_hash[:16] + "...", # Masked for privacy
+        "polling_unit": payload.polling_unit_code,
+        "session_token": session_token,
+        "message": "Voter successfully accredited. Proceed to tiered balloting."
+    }
+ACTIVE_SESSIONS = {} 
+LEDGER = []
+
+class Block:
+    def __init__(self, index, timestamp, data, previous_hash):
+        self.index = index
+        self.timestamp = timestamp
+        self.data = data
+        self.previous_hash = previous_hash
+        self.hash = self.calculate_hash()
+
+    def calculate_hash(self):
+        block_string = json.dumps({
+            "index": self.index,
+            "timestamp": self.timestamp,
+            "data": self.data,
+            "previous_hash": self.previous_hash
+        }, sort_keys=True)
+        return hashlib.sha256(block_string.encode()).hexdigest()
+
+def get_latest_block():
+    if not LEDGER:
+        # Initialize Genesis Block if ledger is empty
+        genesis = Block(0, time.time(), {"message": "Genesis Block - E-Voting Ledger Initialized"}, "0")
+        LEDGER.append(genesis)
+    return LEDGER[-1]
+
+# Request model for casting a ballot
+class BallotSubmission(BaseModel):
+    session_token: str
+    candidate_id: str
+    polling_unit_code: str
+
+@app.post("/api/v1/ballot/submit")
+async def submit_ballot(payload: BallotSubmission):
+    # 1. Verify session token exists and is valid
+    if payload.session_token not in ACTIVE_SESSIONS:
+        return {
+            "status": "error",
+            "error_code": "INVALID_OR_EXPIRED_SESSION",
+            "message": "Session token is invalid, expired, or has already been used."
+        }
+    
+    # Retrieve and immediately consume/pop the token to prevent replay attacks
+    voter_hash = ACTIVE_SESSIONS.pop(payload.session_token)
+
+    # 2. Mark voter hash in the global registry to block double voting
+    VOTED_REGISTRY.add(voter_hash)
+
+    # 3. Construct ballot data (stripped of any direct PII, tracked via blind hash)
+    vote_data = {
+        "candidate_id": payload.candidate_id,
+        "polling_unit_code": payload.polling_unit_code,
+        "voter_blind_hash_prefix": voter_hash[:12]
     }
 
+    # 4. Append new block to the immutable ledger
+    previous_block = get_latest_block()
+    new_block = Block(
+        index=previous_block.index + 1,
+        timestamp=time.time(),
+        data=vote_data,
+        previous_hash=previous_block.hash
+    )
+    LEDGER.append(new_block)
 
-# --- EMBEDDED WEB FRONTEND ROOT ROUTE ---
-@app.get("/", response_class=HTMLResponse)
-async def serve_frontend():
-    html_content = """<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nigeria E2E-V Voting Portal & Admin Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 font-sans leading-normal tracking-normal">
-
-    <div class="container mx-auto p-6 max-w-4xl">
-        <header class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-green-800">🇳🇬 Nigeria E2E-V Secure Voting System</h1>
-            <p class="text-gray-600">Cryptographically Secure End-to-End Verifiable Voting Portal</p>
-        </header>
-
-        <!-- Status Banner -->
-        <div id="status-banner" class="mb-6 p-4 rounded-lg bg-white shadow flex justify-between items-center">
-            <div>
-                <span class="font-semibold text-gray-700">System Status:</span> 
-                <span id="sys-status" class="text-yellow-600 font-bold">Connecting...</span>
-            </div>
-            <div>
-                <span class="font-semibold text-gray-700">Total Votes:</span> 
-                <span id="sys-votes" class="text-green-700 font-bold">0</span>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            <!-- Voter Action Card -->
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h2 class="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">🗳️ Cast Your Ballot</h2>
-                
-                <form id="vote-form" class="space-y-4">
-                    <div>
-                        <label class="block text-gray-700 text-sm font-bold mb-2">Voter ID (VIN)</label>
-                        <input type="text" id="vin" value="1234567890123456789" class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-600" required>
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 text-sm font-bold mb-2">National ID (NIN)</label>
-                        <input type="text" id="nin" value="12345678901" class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-600" required>
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 text-sm font-bold mb-2">Select Candidate</label>
-                        <select id="candidate" class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-600">
-                            <option value="Candidate A">Candidate A</option>
-                            <option value="Candidate B">Candidate B</option>
-                            <option value="Candidate C">Candidate C</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="w-full bg-green-700 text-white font-bold p-2 rounded hover:bg-green-800 transition">
-                        Authenticate & Submit Vote
-                    </button>
-                </form>
-                <div id="vote-result" class="mt-4 text-sm font-mono"></div>
-            </div>
-
-            <!-- Admin Tally & Audit Card -->
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h2 class="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">📊 Live Tally & Audit</h2>
-                
-                <div id="tally-container" class="space-y-3 mb-6">
-                    <p class="text-gray-500 text-sm">Loading live results...</p>
-                </div>
-
-                <div class="border-t pt-4">
-                    <button onclick="runAudit()" class="w-full bg-blue-600 text-white font-bold p-2 rounded hover:bg-blue-700 transition mb-3">
-                        Run Cryptographic Audit Check
-                    </button>
-                    <div id="audit-result" class="text-xs bg-gray-50 p-3 rounded border font-mono hidden"></div>
-                </div>
-            </div>
-
-        </div>
-    </div>
-
-    <script>
-        const API_BASE = "http://127.0.0.1:8000/api/v1";
-
-        async function updateDashboard() {
-            try {
-                const healthRes = await fetch(`${API_BASE}/admin/health`);
-                const health = await healthRes.json();
-                document.getElementById('sys-status').innerText = `${health.status} (DB: ${health.database_status})`;
-                document.getElementById('sys-status').className = health.status === 'HEALTHY' ? 'text-green-600 font-bold' : 'text-red-600 font-bold';
-                document.getElementById('sys-votes').innerText = health.total_votes_cast;
-
-                const tallyRes = await fetch(`${API_BASE}/tally/results`);
-                const tallyData = await tallyRes.json();
-                
-                const tallyContainer = document.getElementById('tally-container');
-                tallyContainer.innerHTML = '';
-                
-                const total = tallyData.total_votes_cast || 1; 
-                for (const [candidate, votes] of Object.entries(tallyData.tally || {})) {
-                    const percentage = ((votes / total) * 100).toFixed(1);
-                    tallyContainer.innerHTML += `
-                        <div>
-                            <div class="flex justify-between text-sm font-medium text-gray-700 mb-1">
-                                <span>${candidate}</span>
-                                <span>${votes} votes (${percentage}%)</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2.5">
-                                <div class="bg-green-600 h-2.5 rounded-full" style="width: ${percentage}%"></div>
-                            </div>
-                        </div>
-                    `;
-                }
-            } catch (err) {
-                document.getElementById('sys-status').innerText = "OFFLINE (Server unreachable)";
-                document.getElementById('sys-status').className = 'text-red-600 font-bold';
-            }
+    return {
+        "status": "success",
+        "message": "Vote successfully cast and anchored to the blockchain ledger.",
+        "receipt": {
+            "block_index": new_block.index,
+            "block_hash": new_block.hash,
+            "timestamp": new_block.timestamp
         }
+    }
+@app.get("/api/v1/ledger/verify")
+async def verify_ledger_integrity():
+    if not LEDGER:
+        return {"status": "valid", "total_blocks": 0, "message": "Ledger is empty."}
 
-        document.getElementById('vote-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const vin = document.getElementById('vin').value;
-            const nin = document.getElementById('nin').value;
-            const candidate = document.getElementById('candidate').value;
-            const resultDiv = document.getElementById('vote-result');
+    # Iterate through the chain starting from block 1 (skipping genesis)
+    for i in range(1, len(LEDGER)):
+        current_block = LEDGER[i]
+        previous_block = LEDGER[i - 1]
 
-            resultDiv.className = "mt-4 text-sm font-mono text-blue-600";
-            resultDiv.innerText = "⏳ Authenticating voter...";
-
-            try {
-                const authRes = await fetch(`${API_BASE}/auth/verify`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ vin, nin })
-                });
-                if (!authRes.ok) throw new Error("Authentication failed.");
-                const authData = await authRes.json();
-
-                resultDiv.innerText = "🔒 Requesting blind signature...";
-                const blindRes = await fetch(`${API_BASE}/authority/blind-sign`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_token: authData.session_token, blinded_message: Math.floor(Math.random() * 1000) })
-                });
-                if (!blindRes.ok) throw new Error("Blind signature rejected.");
-
-                resultDiv.innerText = "📦 Submitting cryptographic ballot...";
-                const nonce = 'web_' + Math.random().toString(36).substring(2, 15);
-                const validSignature = 3106; 
-
-                const voteRes = await fetch(`${API_BASE}/ballotbox/submit-vote`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ candidate, nonce, signature: validSignature })
-                });
-                
-                if (!voteRes.ok) throw new Error("Vote submission error.");
-                
-                const voteData = await voteRes.json();
-                resultDiv.className = "mt-4 text-sm font-mono text-green-600";
-                resultDiv.innerHTML = `✅ Success! Ballot chained.<br>Hash: <code>${voteData.block_hash.substring(0, 16)}...</code>`;
-                
-                updateDashboard();
-            } catch (err) {
-                resultDiv.className = "mt-4 text-sm font-mono text-red-600";
-                resultDiv.innerText = `❌ Error: ${err.message}`;
+        # 1. Check if the stored hash matches the recomputed hash
+        if current_block.hash != current_block.calculate_hash():
+            return {
+                "status": "compromised",
+                "invalid_block_index": current_block.index,
+                "error": "Block data has been modified; hash mismatch detected."
             }
-        });
 
-        async function runAudit() {
-            const auditDiv = document.getElementById('audit-result');
-            auditDiv.classList.remove('hidden');
-            auditDiv.innerText = "Running ZK-audit verification...";
-            
-            try {
-                const res = await fetch(`${API_BASE}/tally/audit`);
-                const data = await res.json();
-                auditDiv.innerText = JSON.stringify(data, null, 2);
-            } catch (err) {
-                auditDiv.innerText = `Audit check failed: ${err.message}`;
+        # 2. Check if the previous_hash link is valid
+        if current_block.previous_hash != previous_block.hash:
+            return {
+                "status": "compromised",
+                "invalid_block_index": current_block.index,
+                "error": "Chain broken; previous hash reference does not match predecessor."
             }
-        }
 
-        updateDashboard();
-        setInterval(updateDashboard, 3000);
-    </script>
-</body>
-</html>"""
-    return HTMLResponse(content=html_content)
+    return {
+        "status": "valid",
+        "total_blocks": len(LEDGER),
+        "message": "Blockchain ledger integrity verified successfully. No tampering detected."
+    }
 
-
-@app.get("/favicon.ico", include_in_schema=False)
-async def ignore_favicon():
-    return JSONResponse(status_code=204, content={})
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

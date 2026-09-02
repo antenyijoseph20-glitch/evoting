@@ -2,222 +2,116 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nigeria E2E-V Voting Portal & Admin Dashboard</title>
-    <!-- Tailwind CSS for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Nigeria E2E-V Secure Voting Bulletin Board</title>
 </head>
-<body class="bg-gray-100 font-sans leading-normal tracking-normal">
+<body style="font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; background: #fdfdfd;">
 
-    <div class="container mx-auto p-6 max-w-4xl">
-        <header class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-green-800">🇳🇬 Nigeria E2E-V Secure Voting System</h1>
-            <p class="text-gray-600">Cryptographically Secure End-to-End Verifiable Voting Portal</p>
-        </header>
+    <h1>Nigeria E2E-V Secure Voting System</h1>
+    <h2>Public Bulletin Board Ledger</h2>
 
-        <!-- Status Banner -->
-        <div id="status-banner" class="mb-6 p-4 rounded-lg bg-white shadow flex justify-between items-center">
-            <div>
-                <span class="font-semibold text-gray-700">System Status:</span> 
-                <span id="sys-status" class="text-yellow-600 font-bold">Connecting...</span>
-            </div>
-            <div>
-                <span class="font-semibold text-gray-700">Total Votes:</span> 
-                <span id="sys-votes" class="text-green-700 font-bold">0</span>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            <!-- Voter Action Card -->
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h2 class="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">🗳️ Cast Your Ballot</h2>
-                
-                <form id="vote-form" class="space-y-4">
-                    <div>
-                        <label class="block text-gray-700 text-sm font-bold mb-2">Voter Identification Number (VIN)</label>
-                        <input type="text" id="vin" value="1234567890123456789" class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-600" required>
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 text-sm font-bold mb-2">National Identification Number (NIN)</label>
-                        <input type="text" id="nin" value="12345678901" class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-600" required>
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 text-sm font-bold mb-2">Select Candidate</label>
-                        <select id="candidate" class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-600">
-                            <option value="Candidate A">Candidate A</option>
-                            <option value="Candidate B">Candidate B</option>
-                            <option value="Candidate C">Candidate C</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="w-full bg-green-700 text-white font-bold p-2 rounded hover:bg-green-800 transition">
-                        Authenticate & Submit Vote
-                    </button>
-                </form>
-                <div id="vote-result" class="mt-4 text-sm font-mono"></div>
-            </div>
-
-            <!-- Admin Tally & Audit Card -->
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h2 class="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">📊 Live Tally & Audit</h2>
-                
-                <div id="tally-container" class="space-y-3 mb-6">
-                    <p class="text-gray-500 text-sm">Loading live results...</p>
-                </div>
-
-                <div class="border-t pt-4">
-                    <button onclick="runAudit()" class="w-full bg-blue-600 text-white font-bold p-2 rounded hover:bg-blue-700 transition mb-3">
-                        Run Cryptographic Audit Check
-                    </button>
-                    <div id="audit-result" class="text-xs bg-gray-50 p-3 rounded border font-mono hidden"></div>
-                </div>
-            </div>
-
-        </div>
+    <!-- Integrity Status Badge Placeholder -->
+    <div id="integrity-status" style="margin-bottom: 20px;">
+        Checking ledger integrity...
     </div>
 
-    <script>
-        const API_BASE = "http://127.0.0.1:8000/api/v1";
+    <!-- Blocks Container Placeholder -->
+    <div id="blocks-container">
+        <!-- JavaScript will populate block cards here -->
+    </div>
 
-        // Poll health and tally metrics every 3 seconds
-        async function updateDashboard() {
-            try {
-                // Health check
-                const healthRes = await fetch(`${API_BASE}/admin/health`);
-                const health = await healthRes.json();
-                document.getElementById('sys-status').innerText = `${health.status} (DB: ${health.database_status})`;
-                document.getElementById('sys-status').className = health.status === 'HEALTHY' ? 'text-green-600 font-bold' : 'text-red-600 font-bold';
-                document.getElementById('sys-votes').innerText = health.total_votes_cast;
-
-                // Tally check
-                const tallyRes = await fetch(`${API_BASE}/tally/results`);
-                const tallyData = await tallyRes.json();
-                
-                const tallyContainer = document.getElementById('tally-container');
-                tallyContainer.innerHTML = '';
-                
-                const total = tallyData.total_votes_cast || 1; // Prevent division by zero
-                for (const [candidate, votes] of Object.entries(tallyData.tally || {})) {
-                    const percentage = ((votes / total) * 100).toFixed(1);
-                    tallyContainer.innerHTML += `
-                        <div>
-                            <div class="flex justify-between text-sm font-medium text-gray-700 mb-1">
-                                <span>${candidate}</span>
-                                <span>${votes} votes (${percentage}%)</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2.5">
-                                <div class="bg-green-600 h-2.5 rounded-full" style="width: ${percentage}%"></div>
-                            </div>
-                        </div>
-                    `;
-                }
-            } catch (err) {
-                document.getElementById('sys-status').innerText = "OFFLINE (Server unreachable)";
-                document.getElementById('sys-status').className = 'text-red-600 font-bold';
-            }
-        }
-
-        // Handle full E2E voting workflow from the browser
-        document.getElementById('vote-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const vin = document.getElementById('vin').value;
-            const nin = document.getElementById('nin').value;
-            const candidate = document.getElementById('candidate').value;
-            const resultDiv = document.getElementById('vote-result');
-
-            resultDiv.className = "mt-4 text-sm font-mono text-blue-600";
-            resultDiv.innerText = "⏳ Authenticating voter...";
-
-            try {
-                // 1. Authenticate
-                const authRes = await fetch(`${API_BASE}/auth/verify`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ vin, nin })
-                });
-                if (!authRes.ok) throw new Error("Authentication failed. Check your VIN/NIN.");
-                const authData = await authRes.json();
-
-                // 2. Request Blind Signature
-                resultDiv.innerText = "🔒 Requesting blind signature...";
-                const blindRes = await fetch(`${API_BASE}/authority/blind-sign`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_token: authData.session_token, blinded_message: Math.floor(Math.random() * 1000) })
-                });
-                if (!blindRes.ok) throw new Error("Blind signature authority rejected request.");
-
-                // 3. Submit Vote (Simulating client-side RSA computation matching backend parameters e=17, n=3233, d=2753)
-                resultDiv.innerText = "📦 Submitting cryptographic ballot...";
-                const nonce = 'web_' + Math.random().toString(36).substring(2, 15);
-                
-                // Helper math matching your crypto engine configuration
-                const encoder = new TextEncoder();
-                const rawString = `${candidate}:${nonce}`;
-                // Simplified hash simulation or exact match for demo submission
-                const validSignature = 3106; // Pre-calculated valid signature stub or matching keypair math
-
-                const voteRes = await fetch(`${API_BASE}/ballotbox/submit-vote`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ candidate, nonce, signature: validSignature })
-                });
-                
-                if (!voteRes.ok) {
-                    const errTxt = await voteRes.text();
-                    throw new Error(`Vote submission error: ${errTxt}`);
-                }
-                
-                const voteData = await voteRes.json();
-                resultDiv.className = "mt-4 text-sm font-mono text-green-600";
-                resultDiv.innerHTML = `✅ Success! Ballot chained.<br>Hash: <code>${voteData.block_hash.substring(0, 16)}...</code>`;
-                
-                updateDashboard();
-            } catch (err) {
-                resultDiv.className = "mt-4 text-sm font-mono text-red-600";
-                resultDiv.innerText = `❌ Error: ${err.message}`;
-            }
-        });
-
-        // Run Ledger Audit
-        async function runAudit() {
-            const auditDiv = document.getElementById('audit-result');
-            auditDiv.classList.remove('hidden');
-            auditDiv.innerText = "Running ZK-audit verification...";
-            
-            try {
-                const res = await fetch(`${API_BASE}/tally/audit`);
-                const data = await res.json();
-                auditDiv.innerText = JSON.stringify(data, null, 2);
-            } catch (err) {
-                auditDiv.innerText = `Audit check failed: ${err.message}`;
-            }
-        }
-
-        // Run loop on load
-        updateDashboard();
-        setInterval(updateDashboard, 3000);
-    </script>
+    <!-- Link your frontend app script -->
+    <script src="/static/js/app.js"></script>
 </body>
 </html>
 
-from fastapi.responses import HTMLResponse
-
-
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    return """
-    <html>
-        <head>
-            <title>Nigeria E2E-V Voting Portal</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-        </head>
-        <body class="bg-gray-100 flex items-center justify-center h-screen">
-            <div class="text-center bg-white p-8 rounded-lg shadow-md">
-                <h1 class="text-2xl font-bold text-green-800 mb-2">🇳🇬 Nigeria E2E-V Secure Voting API</h1>
-                <p class="text-gray-600 mb-4">Backend services are online and operational.</p>
-                <a href="/docs" class="bg-green-700 text-white px-4 py-2 rounded font-semibold hover:bg-green-800 transition">View API Docs (Swagger)</a>
+<!-- Voter Interaction Portal -->
+<div style="background: #ffffff; border: 1px solid #ced4da; padding: 20px; border-radius: 8px; margin-bottom: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <h3 style="margin-top: 0; color: #111; font-size: 18px;">🗳️ Voter Portal & Ballot Casting</h3>
+    
+    <!-- Step 1: Accreditation Form -->
+    <div id="step-1-container">
+        <p style="font-size: 13px; color: #666; margin-bottom: 12px;">Step 1: Enter your credentials for NIN/VIN accreditation.</p>
+        <form id="auth-form" style="display: grid; gap: 10px; max-width: 400px;">
+            <div>
+                <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 4px;">NIN (11 Digits)</label>
+                <input type="text" id="nin-input" required maxlength="11" placeholder="e.g. 12345678901" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" />
             </div>
-        </body>
-    </html>
-    """
+            <div>
+                <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 4px;">VIN (Voter ID Number)</label>
+                <input type="text" id="vin-input" required placeholder="e.g. 90FB123456789012345" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" />
+            </div>
+            <div>
+                <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 4px;">Polling Unit Code</label>
+                <input type="text" id="pu-input" required value="PU-05-12-04-001" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" />
+            </div>
+            <button type="submit" style="background: #0056b3; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 6px;">
+                Verify & Get Ballot Token
+            </button>
+        </form>
+    </div>
+
+    <!-- Step 2: Ballot Submission Form (Hidden initially) -->
+    <div id="step-2-container" style="display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px;">
+        <p style="font-size: 13px; color: #28a745; font-weight: bold; margin-bottom: 10px;">✅ Accreditation Successful! Session token acquired.</p>
+        <form id="ballot-form" style="display: grid; gap: 10px; max-width: 400px;">
+            <div>
+                <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 4px;">Select Candidate</label>
+                <select id="candidate-select" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <option value="Candidate A">Candidate A (Progressive Party)</option>
+                    <option value="Candidate B">Candidate B (Democratic Alliance)</option>
+                    <option value="Candidate C">Candidate C (People's Coalition)</option>
+                </select>
+            </div>
+            <button type="submit" style="background: #28a745; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 6px;">
+                Cast Secure Ballot & Anchor to Ledger
+            </button>
+        </form>
+    </div>
+
+    <!-- Status feedback banner -->
+    <div id="voter-feedback" style="margin-top: 12px; font-size: 13px; color: #333;"></div>
+</div>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nigeria E2E-V Secure Voting Bulletin Board</title>
+</head>
+<body style="font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; background: #fdfdfd;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eaeaea; padding-bottom: 10px;">
+        <div>
+            <h1 style="margin: 0; font-size: 22px; color: #111;">Nigeria E2E-V Voting Portal</h1>
+            <p style="margin: 4px 0 0 0; font-size: 13px; color: #666;">Cryptographically verifiable decentralized voting audit node</p>
+        </div>
+        <!-- Direct Download Button for Auditors -->
+        <div>
+            <a href="http://127.0.0.1:8000/api/v1/bulletin-board/export" target="_blank" style="background: #28a745; color: white; padding: 10px 16px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                📥 Export Ledger JSON
+            </a>
+        </div>
+    </div>
+
+    <h2>Public Bulletin Board Ledger</h2>
+
+    <!-- Integrity Status Badge Placeholder -->
+    <div id="integrity-status" style="margin-bottom: 20px;">
+        Checking ledger integrity...
+    </div>
+
+    <!-- Blocks Container Placeholder -->
+    <div id="blocks-container">
+        <!-- JavaScript will populate block cards here -->
+    </div>
+
+    <!-- Link your frontend app script -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+
+<!-- Live Tally Summary Section -->
+<div id="tally-container" style="background: #f8f9fa; border: 1px solid #dee2e6; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
+    <h3 style="margin-top: 0; color: #333; font-size: 16px;">📊 Live Election Tally</h3>
+    <div id="tally-results-list">Loading live results...</div>
+</div>
