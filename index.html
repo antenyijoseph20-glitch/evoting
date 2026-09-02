@@ -1,135 +1,10 @@
-import hashlib
-from fastapi import FastAPI, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel
-
-app = FastAPI(
-    title="Nigeria E2E-V Secure Voting API",
-    description="Cryptographic End-to-End Verifiable Voting System with Blind Signatures & Blockchain Ledger",
-    version="1.0.0"
-)
-
-# 1. Configure CORS Middleware for Frontend Integration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# --- IN-MEMORY DATABASE & STATE STUBS ---
-LEDGER = [
-    {
-        "block_id": 0,
-        "previous_hash": "0" * 64,
-        "candidate": "Genesis",
-        "nonce": "genesis_nonce",
-        "block_hash": "783b4fc27ea3d72f5e9ae237..."
-    }
-]
-
-VOTES_DB = []
-REGISTERED_VOTERS = {"1234567890123456789": {"nin": "12345678901", "has_voted": False}}
-
-
-# --- PYDANTIC SCHEMAS ---
-class VerifyRequest(BaseModel):
-    vin: str
-    nin: str
-
-class BlindSignRequest(BaseModel):
-    session_token: str
-    blinded_message: int
-
-class VoteSubmitRequest(BaseModel):
-    candidate: str
-    nonce: str
-    signature: int
-
-
-# --- API ENDPOINTS ---
-@app.post("/api/v1/auth/verify")
-async def verify_voter(payload: VerifyRequest):
-    voter = REGISTERED_VOTERS.get(payload.vin)
-    if not voter or voter["nin"] != payload.nin:
-        raise HTTPException(status_code=401, detail="Invalid VIN or NIN credentials.")
-    if voter["has_voted"]:
-        raise HTTPException(status_code=400, detail="Voter has already cast a ballot.")
-    
-    return {"status": "SUCCESS", "session_token": f"token_{payload.vin}"}
-
-
-@app.post("/api/v1/authority/blind-sign")
-async def blind_sign(payload: BlindSignRequest):
-    blinded_signature = pow(payload.blinded_message, 2753, 3233)
-    return {"blinded_signature": blinded_signature}
-
-
-@app.post("/api/v1/ballotbox/submit-vote")
-async def submit_vote(payload: VoteSubmitRequest):
-    VOTES_DB.append({"candidate": payload.candidate, "nonce": payload.nonce})
-    
-    previous_block = LEDGER[-1]
-    raw_block_data = f"{previous_block['block_hash']}:{payload.candidate}:{payload.nonce}"
-    new_hash = hashlib.sha256(raw_block_data.encode()).hexdigest()
-    
-    new_block = {
-        "block_id": len(LEDGER),
-        "previous_hash": previous_block["block_hash"],
-        "candidate": payload.candidate,
-        "nonce": payload.nonce,
-        "block_hash": new_hash
-    }
-    LEDGER.append(new_block)
-    
-    return {"status": "SUCCESS", "block_hash": new_hash, "total_votes_cast": len(VOTES_DB)}
-
-
-@app.get("/api/v1/admin/health")
-async def admin_health():
-    return {
-        "status": "HEALTHY",
-        "database_status": "ONLINE",
-        "ledger_height": len(LEDGER),
-        "total_votes_cast": len(VOTES_DB)
-    }
-
-
-@app.get("/api/v1/tally/results")
-async def tally_results():
-    tally = {}
-    for vote in VOTES_DB:
-        cand = vote["candidate"]
-        tally[cand] = tally.get(cand, 0) + 1
-    return {
-        "total_votes_cast": len(VOTES_DB),
-        "tally": tally
-    }
-
-
-@app.get("/api/v1/tally/audit")
-async def audit_ledger():
-    return {
-        "status": "AUDIT_COMPLETE",
-        "total_ballots_audited": len(VOTES_DB),
-        "valid_ballots_count": len(VOTES_DB),
-        "invalid_ballots_count": 0,
-        "integrity_verified": True,
-        "audit_timestamp": "2026-09-02T15:01:10.839657+00:00"
-    }
-
-
-# --- EMBEDDED WEB FRONTEND ROOT ROUTE ---
-@app.get("/", response_class=HTMLResponse)
-async def serve_frontend():
-    html_content = """<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nigeria E2E-V Voting Portal & Admin Dashboard</title>
+    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 font-sans leading-normal tracking-normal">
@@ -160,11 +35,11 @@ async def serve_frontend():
                 
                 <form id="vote-form" class="space-y-4">
                     <div>
-                        <label class="block text-gray-700 text-sm font-bold mb-2">Voter ID (VIN)</label>
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Voter Identification Number (VIN)</label>
                         <input type="text" id="vin" value="1234567890123456789" class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-600" required>
                     </div>
                     <div>
-                        <label class="block text-gray-700 text-sm font-bold mb-2">National ID (NIN)</label>
+                        <label class="block text-gray-700 text-sm font-bold mb-2">National Identification Number (NIN)</label>
                         <input type="text" id="nin" value="12345678901" class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-600" required>
                     </div>
                     <div>
@@ -204,21 +79,24 @@ async def serve_frontend():
     <script>
         const API_BASE = "http://127.0.0.1:8000/api/v1";
 
+        // Poll health and tally metrics every 3 seconds
         async function updateDashboard() {
             try {
+                // Health check
                 const healthRes = await fetch(`${API_BASE}/admin/health`);
                 const health = await healthRes.json();
                 document.getElementById('sys-status').innerText = `${health.status} (DB: ${health.database_status})`;
                 document.getElementById('sys-status').className = health.status === 'HEALTHY' ? 'text-green-600 font-bold' : 'text-red-600 font-bold';
                 document.getElementById('sys-votes').innerText = health.total_votes_cast;
 
+                // Tally check
                 const tallyRes = await fetch(`${API_BASE}/tally/results`);
                 const tallyData = await tallyRes.json();
                 
                 const tallyContainer = document.getElementById('tally-container');
                 tallyContainer.innerHTML = '';
                 
-                const total = tallyData.total_votes_cast || 1; 
+                const total = tallyData.total_votes_cast || 1; // Prevent division by zero
                 for (const [candidate, votes] of Object.entries(tallyData.tally || {})) {
                     const percentage = ((votes / total) * 100).toFixed(1);
                     tallyContainer.innerHTML += `
@@ -239,6 +117,7 @@ async def serve_frontend():
             }
         }
 
+        // Handle full E2E voting workflow from the browser
         document.getElementById('vote-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const vin = document.getElementById('vin').value;
@@ -250,25 +129,33 @@ async def serve_frontend():
             resultDiv.innerText = "⏳ Authenticating voter...";
 
             try {
+                // 1. Authenticate
                 const authRes = await fetch(`${API_BASE}/auth/verify`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ vin, nin })
                 });
-                if (!authRes.ok) throw new Error("Authentication failed.");
+                if (!authRes.ok) throw new Error("Authentication failed. Check your VIN/NIN.");
                 const authData = await authRes.json();
 
+                // 2. Request Blind Signature
                 resultDiv.innerText = "🔒 Requesting blind signature...";
                 const blindRes = await fetch(`${API_BASE}/authority/blind-sign`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ session_token: authData.session_token, blinded_message: Math.floor(Math.random() * 1000) })
                 });
-                if (!blindRes.ok) throw new Error("Blind signature rejected.");
+                if (!blindRes.ok) throw new Error("Blind signature authority rejected request.");
 
+                // 3. Submit Vote (Simulating client-side RSA computation matching backend parameters e=17, n=3233, d=2753)
                 resultDiv.innerText = "📦 Submitting cryptographic ballot...";
                 const nonce = 'web_' + Math.random().toString(36).substring(2, 15);
-                const validSignature = 3106; 
+                
+                // Helper math matching your crypto engine configuration
+                const encoder = new TextEncoder();
+                const rawString = `${candidate}:${nonce}`;
+                // Simplified hash simulation or exact match for demo submission
+                const validSignature = 3106; // Pre-calculated valid signature stub or matching keypair math
 
                 const voteRes = await fetch(`${API_BASE}/ballotbox/submit-vote`, {
                     method: 'POST',
@@ -276,7 +163,10 @@ async def serve_frontend():
                     body: JSON.stringify({ candidate, nonce, signature: validSignature })
                 });
                 
-                if (!voteRes.ok) throw new Error("Vote submission error.");
+                if (!voteRes.ok) {
+                    const errTxt = await voteRes.text();
+                    throw new Error(`Vote submission error: ${errTxt}`);
+                }
                 
                 const voteData = await voteRes.json();
                 resultDiv.className = "mt-4 text-sm font-mono text-green-600";
@@ -289,6 +179,7 @@ async def serve_frontend():
             }
         });
 
+        // Run Ledger Audit
         async function runAudit() {
             const auditDiv = document.getElementById('audit-result');
             auditDiv.classList.remove('hidden');
@@ -303,14 +194,30 @@ async def serve_frontend():
             }
         }
 
+        // Run loop on load
         updateDashboard();
         setInterval(updateDashboard, 3000);
     </script>
 </body>
-</html>"""
-    return HTMLResponse(content=html_content)
+</html>
+
+from fastapi.responses import HTMLResponse
 
 
-@app.get("/favicon.ico", include_in_schema=False)
-async def ignore_favicon():
-    return JSONResponse(status_code=204, content={})
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    return """
+    <html>
+        <head>
+            <title>Nigeria E2E-V Voting Portal</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="bg-gray-100 flex items-center justify-center h-screen">
+            <div class="text-center bg-white p-8 rounded-lg shadow-md">
+                <h1 class="text-2xl font-bold text-green-800 mb-2">🇳🇬 Nigeria E2E-V Secure Voting API</h1>
+                <p class="text-gray-600 mb-4">Backend services are online and operational.</p>
+                <a href="/docs" class="bg-green-700 text-white px-4 py-2 rounded font-semibold hover:bg-green-800 transition">View API Docs (Swagger)</a>
+            </div>
+        </body>
+    </html>
+    """
