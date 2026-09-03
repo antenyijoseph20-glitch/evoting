@@ -13,7 +13,7 @@ cleanup() {
         echo "Stopping e-voting server process (PID: $SERVER_PID)..."
         kill "$SERVER_PID" 2>/dev/null || true
     fi
-    pkill -f "python3 main.py" 2>/dev/null || true
+    pkill -f "main.py" 2>/dev/null || true
     echo "Cleanup complete."
 }
 
@@ -24,17 +24,27 @@ echo "======================================================================"
 echo " INITIALIZING E-VOTING TEST RUNNER"
 echo "======================================================================"
 
+# Activate virtual environment
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+elif [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+else
+    echo "ERROR: Virtual environment not found in venv/ or .venv/"
+    exit 1
+fi
+
 # 1. Clear database files for a clean test run
 echo "[1/4] Purging existing database artifacts..."
 rm -f evoting.db evoting.db-wal evoting.db-shm
 
 # 2. Kill any stale server instances
 echo "[2/4] Terminating existing server instances..."
-pkill -f "python3 main.py" 2>/dev/null || true
+pkill -f "main.py" 2>/dev/null || true
 
-# 3. Start the server in background and direct output to server.log
+# 3. Start the server in background using activated venv python and direct output to server.log
 echo "[3/4] Launching e-voting core server..."
-python3 main.py > server.log 2>&1 &
+python main.py > server.log 2>&1 &
 SERVER_PID=$!
 
 echo "Server process launched with PID $SERVER_PID. Waiting for table initialization..."
@@ -72,8 +82,7 @@ echo ""
 echo "[4/4] Executing test suites..."
 echo "======================================================================"
 
-python3 test_security_guards.py
-python3 test_receipt_verification.py
-python3 test_tally_and_audit.py
-python3 test_hash_chain_tamper.py
-
+python test_security_guards.py
+python test_receipt_verification.py
+python test_tally_and_audit.py
+python test_hash_chain_tamper.py
