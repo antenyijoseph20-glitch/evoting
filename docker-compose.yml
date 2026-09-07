@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  evoting-core:
+    build: .
+    container_name: evoting-core-server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - evoting_data:/app/data
+    environment:
+      - ENVIRONMENT=production
+      - DB_NAME=evoting.db
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  evoting_data:
