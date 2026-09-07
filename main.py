@@ -96,21 +96,11 @@ def calculate_block_hash(index, timestamp, data_str, previous_hash):
     }, sort_keys=True)
     return hashlib.sha256(block_string.encode()).hexdigest()
 
-# ==========================================
-# FRONTEND & HEALTH ENDPOINTS
-# ==========================================
 @app.get("/", response_class=HTMLResponse)
 async def serve_frontend():
-    index_path = os.path.join("static", "index.html")
-    if os.path.exists(index_path):
-        with open(index_path, "r", encoding="utf-8") as f:
-            return f.read()
-    return "<h3>Frontend index.html not found in static/ folder.</h3>"
-
-@app.get("/api/v1/admin/health")
-async def admin_health():
-    return {"status": "healthy", "system": "operational"}
-
+    index_path = os.path.abspath(os.path.join("static", "index.html"))
+    with open(index_path, "r", encoding="utf-8") as f:
+        return f.read()
 # ==========================================
 # BULLETIN BOARD & TALLY ENDPOINTS
 # ==========================================
@@ -236,6 +226,7 @@ async def get_tally_results(path: str = ""):
         "breakdown": results,
         "ledger_blocks_scanned": total_votes + 1
     }
+
 # ==========================================
 # ACCREDITATION & SECURITY GUARDS
 # ==========================================
@@ -322,7 +313,6 @@ async def blind_sign_ballot(payload: BlindSignRequest):
             detail="Blind signature has already been issued for this session."
         )
 
-    # Mark as signed and invalidate further re-authentication/signing
     cursor.execute("UPDATE accredited_voters SET signed_status = 1, session_token = NULL WHERE voter_hash = ?", (voter_hash,))
     conn.commit()
     conn.close()
@@ -410,7 +400,6 @@ async def submit_ballotbox_vote(payload: BallotBoxSubmission):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
-    # Check for replay attack (nonce or signature already used)
     cursor.execute("SELECT id FROM ballot_box WHERE nonce = ? OR signature = ?", (payload.nonce, str(payload.signature)))
     if cursor.fetchone():
         conn.close()
@@ -493,19 +482,3 @@ async def verify_receipt(nonce: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
-
-@app.get("/api/v1/tally/results")
-@app.get("/api/v1/tally")
-async def get_tally_results():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT candidate, COUNT(*) FROM ballot_box GROUP BY candidate")
-    results = {row[0]: row[1] for row in cursor.fetchall()}
-    cursor.execute("SELECT COUNT(*) FROM ballot_box")
-    total_votes = cursor.fetchone()[0]
-    conn.close()
-    return {
-        "total_votes": total_votes,
-        "tally": results,
-        "breakdown": results
-    }
