@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure E-Voting Portal</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f7f6; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 600px; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin: auto; }
+        h1 { color: #004d40; text-align: center; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background: #004d40; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-size: 16px; cursor: pointer; }
+        button:hover { background: #00695c; }
+        #result { margin-top: 20px; padding: 15px; background: #e0f2f1; border-radius: 4px; display: none; word-break: break-all; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Secure E-Voting Portal</h1>
+        <p style="text-align: center; color: #666;">Cryptographically Verifiable End-to-End Voting</p>
+        
+        <div class="form-group">
+            <label for="vin">Voter Identification Number (VIN / NIN):</label>
+            <input type="text" id="vin" placeholder="Enter your unique ID">
+        </div>
+
+        <div class="form-group">
+            <label for="candidate">Select Candidate:</label>
+            <select id="candidate">
+                <option value="Candidate A">Candidate A</option>
+                <option value="Candidate B">Candidate B</option>
+                <option value="Candidate C">Candidate C</option>
+            </select>
+        </div>
+
+        <button onclick="castVote()">Cast Secure Ballot</button>
+
+        <div id="result"></div>
+    </div>
+
+    <!-- This links your existing app.js file -->
+    <script src="app.js"></script>
+</body>
+</html>
