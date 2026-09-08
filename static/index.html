@@ -6,7 +6,7 @@
     <title>Nigeria E2E-V Secure Voting Portal</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f4f8; color: #333; margin: 0; padding: 40px; }
-        .container { max-width: 650px; background: #fff; padding: 40px; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); margin: auto; }
+        .container { max-width: 700px; background: #fff; padding: 40px; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); margin: auto; }
         h1 { color: #004d40; text-align: center; margin-bottom: 5px; }
         .subtitle { text-align: center; color: #555; margin-bottom: 30px; font-size: 14px; }
         .form-group { margin-bottom: 20px; }
@@ -18,6 +18,16 @@
         #result { margin-top: 25px; padding: 20px; background: #e0f2f1; border-radius: 6px; display: none; word-break: break-all; border-left: 5px solid #004d40; }
         .step-section { display: none; }
         .step-section.active { display: block; }
+        .party-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 10px; }
+        .party-card { border: 2px solid #cbd5e1; border-radius: 8px; padding: 15px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; background: #fafafa; }
+        .party-card:hover { border-color: #004d40; background: #f1f8f6; }
+        .party-card.selected { border-color: #004d40; background: #e0f2f1; box-shadow: 0 0 0 2px rgba(0,77,64,0.2); }
+        .party-info { display: flex; align-items: center; gap: 15px; }
+        .party-logo { width: 45px; height: 45px; border-radius: 50%; background: #004d40; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; }
+        .party-name { font-weight: 600; font-size: 16px; color: #1e293b; }
+        .party-desc { font-size: 12px; color: #64748b; }
+        .radio-box { width: 20px; height: 20px; border: 2px solid #cbd5e1; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .party-card.selected .radio-box::after { content: ''; width: 10px; height: 10px; background: #004d40; border-radius: 50%; }
     </style>
 </head>
 <body>
@@ -42,16 +52,25 @@
         <!-- STEP 2: CAST BALLOT -->
         <div id="step-vote" class="step-section">
             <h3>Step 2: Cast Your Secure Ballot</h3>
-            <p style="font-size: 13px; color: #666;">Session Token Active. Your ballot will be cast anonymously and anchored to the tamper-evident ledger.</p>
+            <p style="font-size: 13px; color: #666; margin-bottom: 20px;">Session Token Active. Select the election tier and your preferred political party ballot space.</p>
+            
             <div class="form-group">
-                <label for="candidate">Select Preferred Candidate:</label>
-                <select id="candidate">
-                    <option value="Candidate A">Candidate A - Progressive Alliance</option>
-                    <option value="Candidate B">Candidate B - Democratic Congress</option>
-                    <option value="Candidate C">Candidate C - People's Movement</option>
+                <label for="election_type">Select Election Tier:</label>
+                <select id="election_type" onchange="updateParties()">
+                    <option value="PRESIDENTIAL">2027 Presidential Election</option>
+                    <option value="SENATORIAL">Senatorial District Election</option>
+                    <option value="HOUSE_OF_REPS">House of Representatives Election</option>
                 </select>
             </div>
-            <button onclick="castBallot()">Submit Secure Vote</button>
+
+            <div class="form-group">
+                <label>Select Political Party Ballot Space:</label>
+                <div id="party-container" class="party-grid">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <button onclick="castBallot()" style="margin-top: 20px;">Submit Secure Vote</button>
         </div>
 
         <div id="result"></div>
@@ -59,18 +78,67 @@
 
     <script>
         let sessionToken = null;
+        let selectedParty = null;
+
+        const partiesData = {
+            "PRESIDENTIAL": [
+                { code: "APC", name: "All Progressives Congress", symbol: "Broom", color: "#006600" },
+                { code: "PDP", name: "Peoples Democratic Party", symbol: "Umbrella", color: "#e31b23" },
+                { code: "LP", name: "Labour Party", symbol: "Mama, Papa, Pikin", color: "#1d4ed8" },
+                { code: "NNPP", name: "New Nigeria Peoples Party", symbol: "Basket", color: "#d97706" }
+            ],
+            "SENATORIAL": [
+                { code: "APC", name: "All Progressives Congress", symbol: "Broom", color: "#006600" },
+                { code: "PDP", name: "Peoples Democratic Party", symbol: "Umbrella", color: "#e31b23" },
+                { code: "LP", name: "Labour Party", symbol: "Mama, Papa, Pikin", color: "#1d4ed8" },
+                { code: "NNPP", name: "New Nigeria Peoples Party", symbol: "Basket", color: "#d97706" }
+            ],
+            "HOUSE_OF_REPS": [
+                { code: "APC", name: "All Progressives Congress", symbol: "Broom", color: "#006600" },
+                { code: "PDP", name: "Peoples Democratic Party", symbol: "Umbrella", color: "#e31b23" },
+                { code: "LP", name: "Labour Party", symbol: "Mama, Papa, Pikin", color: "#1d4ed8" },
+                { code: "PRP", name: "People's Redemption Party", symbol: "Key", color: "#7c2d12" }
+            ]
+        };
+
+        function updateParties() {
+            const tier = document.getElementById('election_type').value;
+            const container = document.getElementById('party-container');
+            container.innerHTML = '';
+            selectedParty = null;
+
+            partiesData[tier].forEach(party => {
+                const card = document.createElement('div');
+                card.className = 'party-card';
+                card.onclick = () => selectParty(party.code, card);
+                
+                card.innerHTML = `
+                    <div class="party-info">
+                        <div class="party-logo" style="background: ${party.color}">${party.code}</div>
+                        <div>
+                            <div class="party-name">${party.name}</div>
+                            <div class="party-desc">Symbol: ${party.symbol}</div>
+                        </div>
+                    </div>
+                    <div class="radio-box"></div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function selectParty(code, element) {
+            document.querySelectorAll('.party-card').forEach(c => c.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedParty = code;
+        }
 
         async function verifyVoter() {
             const nin = document.getElementById('nin').value.trim();
             const vin = document.getElementById('vin').value.trim();
             const resultDiv = document.getElementById('result');
 
-            if (nin.length !== 11) {
-                alert("NIN must be exactly 11 digits.");
-                return;
-            }
-            if (!vin) {
-                alert("Please enter your VIN.");
+            if (nin.length !== 11 || !vin) {
+                alert("Please enter a valid 11-digit NIN and VIN.");
                 return;
             }
 
@@ -88,13 +156,14 @@
                     sessionToken = data.session_token;
                     resultDiv.style.background = '#e0f2f1';
                     resultDiv.style.borderLeftColor = '#004d40';
-                    resultDiv.innerHTML = `<strong>Accreditation Successful!</strong><br>Session Token established securely.<br><em>Proceeding to voting booth...</em>`;
+                    resultDiv.innerHTML = `<strong>Accreditation Successful!</strong><br>Loading election ballots...`;
                     
                     setTimeout(() => {
                         document.getElementById('step-auth').classList.remove('active');
                         document.getElementById('step-vote').classList.add('active');
+                        updateParties();
                         resultDiv.style.display = 'none';
-                    }, 2000);
+                    }, 1500);
                 } else {
                     resultDiv.style.background = '#ffebee';
                     resultDiv.style.borderLeftColor = '#c62828';
@@ -103,16 +172,20 @@
             } catch (err) {
                 resultDiv.style.display = 'block';
                 resultDiv.style.background = '#ffebee';
-                resultDiv.innerHTML = `<strong>Network Error:</strong> Could not connect to verification core.`;
+                resultDiv.innerHTML = `<strong>Network Error:</strong> Could not connect to backend core.`;
             }
         }
 
         async function castBallot() {
-            const candidateId = document.getElementById('candidate').value;
+            const electionType = document.getElementById('election_type').value;
             const resultDiv = document.getElementById('result');
 
             if (!sessionToken) {
-                alert("No active session token found. Please re-accredit.");
+                alert("No active session token found.");
+                return;
+            }
+            if (!selectedParty) {
+                alert("Please select a political party ballot space before submitting.");
                 return;
             }
 
@@ -122,7 +195,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         session_token: sessionToken,
-                        candidate_id: candidateId,
+                        election_type: electionType,
+                        party_code: selectedParty,
                         polling_unit_code: "PU-001"
                     })
                 });
@@ -134,10 +208,9 @@
                     resultDiv.style.background = '#e0f2f1';
                     resultDiv.style.borderLeftColor = '#004d40';
                     resultDiv.innerHTML = `<strong>Vote Successfully Cast & Anchored!</strong><br>
-                        <strong>Block Index:</strong> ${data.receipt.block_index}<br>
-                        <strong>Ledger Hash:</strong> <code>${data.receipt.block_hash}</code><br>
-                        <hr style="margin: 10px 0; border:0; border-top:1px solid #b2dfdb;">
-                        <em>Your vote has been permanently recorded on the immutable hash-chain ledger.</em>`;
+                        <strong>Election Tier:</strong> ${electionType}<br>
+                        <strong>Party Voted:</strong> ${selectedParty}<br>
+                        <strong>Ledger Hash:</strong> <code>${data.receipt.block_hash}</code>`;
                 } else {
                     resultDiv.style.background = '#ffebee';
                     resultDiv.style.borderLeftColor = '#c62828';
@@ -146,7 +219,7 @@
             } catch (err) {
                 resultDiv.style.display = 'block';
                 resultDiv.style.background = '#ffebee';
-                resultDiv.innerHTML = `<strong>Network Error:</strong> Could not submit ballot to core.`;
+                resultDiv.innerHTML = `<strong>Network Error:</strong> Could not submit ballot.`;
             }
         }
     </script>

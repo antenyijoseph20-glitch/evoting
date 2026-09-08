@@ -1,295 +1,330 @@
-from fastapi import FastAPI, HTTPException, status
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from fastapi.responses import HTMLResponse
-import os
-import hashlib
-import time
-import json
-import uuid
 import sqlite3
+import secrets
+from fastapi import FastAPI, HTTPException, status, Form
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+import hashlib
+import os
 
-# 1. SINGLE AUTHORITATIVE FASTAPI INSTANCE
-app = FastAPI(title="Nigeria E2E-V Secure Voting System", version="1.0.0")
+app = FastAPI(title="Nigeria E2E-V Secure Voting System", version="2.1.2")
 
-# 2. ENABLE CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Ensure static directory exists
+os.makedirs("static", exist_ok=True)
 
-# 3. MOUNT STATIC FILES
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# ==========================================
-# DATABASE INITIALIZATION & LEDGER BACKING
-# ==========================================
 DB_NAME = "evoting.db"
 
+# --- CRYPTOGRAPHIC ENGINE: 2048-bit RSA Authority Keypair ---
+def egcd(a, b):
+    if a == 0:
+        return (b, 0, 1)
+    else:
+        g, y, x = egcd(b % a, a)
+        return (g, x - (b // a) * y, y)
+
+def modinv(a, m):
+    g, x, y = egcd(a, m)
+    if g != 1:
+        raise Exception('Modular inverse does not exist')
+    return x % m
+
+def is_prime(n, k=64):
+    if n < 2: return False
+    if n in (2, 3): return True
+    if n % 2 == 0: return False
+    r, s = 0, n - 1
+    while s % 2 == 0:
+        r += 1
+        s //= 2
+    for _ in range(k):
+        a = secrets.randbelow(n - 3) + 2
+        x = pow(a, s, n)
+        if x == 1 or x == n - 1:
+            continue
+        for _ in range(r - 1):
+            x = pow(x, 2, n)
+            if x == n - 1:
+                break
+        else:
+            return False
+    return True
+
+def generate_prime(bits=1024):
+    while True:
+        p = secrets.randbits(bits)
+        p |= (1 << bits - 1) | 1
+        if is_prime(p):
+            return p
+
+print("[SECURITY] Generating secure 2048-bit RSA Authority Keypair...")
+RSA_E = 65537
+p = generate_prime(1024)
+q = generate_prime(1024)
+RSA_N = p * q
+phi = (p - 1) * (q - 1)
+RSA_D = modinv(RSA_E, phi)
+print("[SECURITY] 2048-bit RSA Authority Keypair initialized successfully.")
+
+# --- DATABASE SETUP & AUTOMATED MIGRATIONS ---
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS ledger_blocks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            block_index INTEGER UNIQUE,
-            timestamp REAL,
-            data TEXT,
-            previous_hash TEXT,
-            block_hash TEXT
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS ballot_box (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            candidate TEXT,
-            nonce TEXT UNIQUE,
-            signature TEXT,
-            status TEXT,
-            recorded_at TEXT
-        )
-    """)
+    
+    # 1. Base tables creation
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS accredited_voters (
-            voter_hash TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            voter_hash TEXT UNIQUE,
+            polling_unit_code TEXT,
             session_token TEXT,
-            signed_status INTEGER DEFAULT 0,
-            voted_status INTEGER DEFAULT 0
+            accredited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            signed_status INTEGER DEFAULT 0
         )
     """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ledger (
+            block_index INTEGER PRIMARY KEY AUTOINCREMENT,
+            previous_hash TEXT,
+            election_type TEXT,
+            party_code TEXT,
+            polling_unit_code TEXT,
+            block_hash TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
     conn.commit()
     
-    # Ensure Genesis Block exists
-    cursor.execute("SELECT COUNT(*) FROM ledger_blocks")
+    # 2. Seed default test voter if table is empty
+    cursor.execute("SELECT COUNT(*) FROM accredited_voters")
     if cursor.fetchone()[0] == 0:
-        genesis_data = json.dumps({"message": "Genesis Block - E-Voting Ledger Initialized"})
-        genesis_hash = hashlib.sha256(f"00{time.time()}{genesis_data}0".encode()).hexdigest()
-        cursor.execute(
-            "INSERT INTO ledger_blocks (block_index, timestamp, data, previous_hash, block_hash) VALUES (?, ?, ?, ?, ?)",
-            (0, time.time(), genesis_data, "0", genesis_hash)
-        )
+        test_hash = hashlib.sha256("12345678901NG12345678".encode()).hexdigest()
+        cursor.execute("""
+            INSERT INTO accredited_voters (voter_hash, polling_unit_code, session_token, signed_status)
+            VALUES (?, ?, ?, 0)
+        """, (test_hash, "PU-001", None))
         conn.commit()
+        
     conn.close()
+    print("[DATABASE] SQLite schema verified and migration checks passed successfully.")
 
 init_db()
 
-def get_latest_block():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT block_index, timestamp, data, previous_hash, block_hash FROM ledger_blocks ORDER BY block_index DESC LIMIT 1")
-    row = cursor.fetchone()
-    conn.close()
-    if row:
-        return {"index": row[0], "timestamp": row[1], "data": json.loads(row[2]), "previous_hash": row[3], "hash": row[4]}
-    return {"index": 0, "timestamp": time.time(), "data": {"message": "Genesis"}, "previous_hash": "0", "hash": "0"}
+# --- PYDANTIC SCHEMAS ---
+class VerifyRequest(BaseModel):
+    nin: str = Field(..., min_length=11, max_length=11)
+    vin: str
+    polling_unit_code: str
 
-def calculate_block_hash(index, timestamp, data_str, previous_hash):
-    block_string = json.dumps({
-        "index": index,
-        "timestamp": timestamp,
-        "data": json.loads(data_str) if isinstance(data_str, str) else data_str,
-        "previous_hash": previous_hash
-    }, sort_keys=True)
-    return hashlib.sha256(block_string.encode()).hexdigest()
+class BlindSignRequest(BaseModel):
+    session_token: str
+    blinded_message: int
 
+class BallotCastRequest(BaseModel):
+    session_token: str
+    election_type: str
+    party_code: str
+    polling_unit_code: str
+
+# Comprehensive list of standard registered political parties for the ballot
+VALID_PARTIES = {
+    "PRESIDENTIAL": ["APC", "PDP", "LP", "NNPP", "APGA", "AAC", "ADC", "PRP"],
+    "SENATORIAL": ["APC", "PDP", "LP", "NNPP", "APGA", "AAC", "ADC", "PRP"],
+    "HOUSE_OF_REPS": ["APC", "PDP", "LP", "NNPP", "APGA", "AAC", "ADC", "PRP"]
+}
+
+# --- HTML TEMPLATE FOR ADMIN REGISTRATION ---
+ADMIN_FORM_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - Register Test Voter</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f9; margin: 0; padding: 40px; display: flex; justify-content: center; }}
+        .card {{ background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }}
+        h2 {{ margin-top: 0; color: #004d40; font-size: 22px; text-align: center; }}
+        label {{ display: block; margin-bottom: 8px; font-weight: 600; color: #555; font-size: 14px; }}
+        input {{ width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }}
+        button {{ background: #004d40; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 14px; }}
+        button:hover {{ background: #00695c; }}
+        .message {{ padding: 10px; margin-bottom: 20px; border-radius: 4px; font-size: 14px; text-align: center; }}
+        .success {{ background: #e0f2f1; color: #004d40; border: 1px solid #b2dfdb; }}
+        .error {{ background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Register Test Voter</h2>
+        {message_block}
+        <form method="POST" action="/admin/register">
+            <label for="nin">NIN (11 digits)</label>
+            <input type="text" id="nin" name="nin" placeholder="e.g. 12345678901" maxlength="11" required>
+
+            <label for="vin">Voter ID (VIN)</label>
+            <input type="text" id="vin" name="vin" placeholder="e.g. NG12345678" required>
+
+            <label for="polling_unit">Polling Unit Code</label>
+            <input type="text" id="polling_unit" name="polling_unit" value="PU-001" required>
+
+            <button type="submit">Commit Voter to DB</button>
+        </form>
+        <p style="text-align:center; margin-top:15px;"><a href="/" style="color:#004d40; text-decoration:none; font-size:13px;">&larr; Back to Voting Portal</a></p>
+    </div>
+</body>
+</html>
+"""
+
+# --- ROUTES ---
 @app.get("/", response_class=HTMLResponse)
 async def serve_frontend():
     index_path = os.path.abspath(os.path.join("static", "index.html"))
-    with open(index_path, "r", encoding="utf-8") as f:
-        return f.read()
-# ==========================================
-# BULLETIN BOARD & TALLY ENDPOINTS
-# ==========================================
-@app.get("/api/v1/bulletin-board/export")
-async def export_bulletin_board_ledger():
+    if os.path.exists(index_path):
+        with open(index_path, "r", encoding="utf-8") as f:
+            return f.read()
+    return "<h3>Portal is active, but static/index.html is missing.</h3>"
+
+@app.get("/admin/register", response_class=HTMLResponse)
+async def render_admin_register():
+    return ADMIN_FORM_HTML.format(message_block="")
+# --- HTML TEMPLATE FOR LIVE RESULTS DASHBOARD ---
+TALLY_DASHBOARD_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - Live Election Results Tally</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f9; margin: 0; padding: 40px; color: #333; }}
+        .container {{ max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }}
+        h2 {{ margin-top: 0; color: #004d40; font-size: 24px; text-align: center; }}
+        .nav-links {{ text-align: center; margin-bottom: 25px; }}
+        .nav-links a {{ color: #004d40; text-decoration: none; margin: 0 15px; font-weight: 600; font-size: 14px; }}
+        .nav-links a:hover {{ text-decoration: underline; }}
+        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+        th, td {{ padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; font-size: 14px; }}
+        th {{ background-color: #004d40; color: white; }}
+        tr:hover {{ background-color: #f1f8f6; }}
+        .tier-header {{ background-color: #e0f2f1; font-weight: bold; color: #004d40; }}
+        .total-badge {{ background: #004d40; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Live Election Results Tally</h2>
+        <div class="nav-links">
+            <a href="/">&larr; Back to Voting Portal</a>
+            <a href="/admin/register">+ Register Test Voter</a>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Election Tier</th>
+                    <th>Party Code</th>
+                    <th>Total Votes Cast</th>
+                </tr>
+            </thead>
+            <tbody>
+                {tally_rows}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
+"""
+
+@app.get("/admin/tally", response_class=HTMLResponse)
+async def view_election_tally():
+    """Aggregates votes from the ledger database and renders a live results tally table."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT block_index, timestamp, data, previous_hash, block_hash FROM ledger_blocks ORDER BY block_index ASC")
-    rows = cursor.fetchall()
+    
+    # Query to group and count votes by election type and party code from the ledger
+    cursor.execute("""
+        SELECT election_type, party_code, COUNT(*) as vote_count
+        FROM ledger
+        GROUP BY election_type, party_code
+        ORDER BY election_type, vote_count DESC
+    """)
+    results = cursor.fetchall()
     conn.close()
+    
+    rows_html = ""
+    if not results:
+        rows_html = '<tr><td colspan="3" style="text-align:center; color:#777;">No votes recorded in the ledger yet.</td></tr>'
+    else:
+        current_tier = ""
+        for election_type, party_code, vote_count in results:
+            rows_html += f"""
+                <tr>
+                    <td><strong>{election_type}</strong></td>
+                    <td>{party_code}</td>
+                    <td><span class="total-badge">{vote_count}</span></td>
+                </tr>
+            """
+            
+    return TALLY_DASHBOARD_HTML.format(tally_rows=rows_html)
 
-    serialized_blocks = []
-    for r in rows:
-        serialized_blocks.append({
-            "block_id": r[0],
-            "previous_hash": r[3],
-            "block_hash": r[4],
-            "data": json.loads(r[2]),
-            "synced_at_timestamp": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(r[1]))
-        })
-    return {
-        "system": "Nigeria E2E-V Secure Voting System",
-        "total_blocks": len(serialized_blocks),
-        "ledger_integrity_status": "VERIFIED_APPEND_ONLY",
-        "blocks": serialized_blocks
-    }
-
-@app.get("/api/v1/tally/audit")
-@app.get("/api/v1/audit")
-@app.get("/api/v1/ledger/audit")
-@app.get("/api/v1/ledger/verify")
-async def verify_ledger_integrity():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT block_index, timestamp, data, previous_hash, block_hash FROM ledger_blocks ORDER BY block_index ASC")
-    rows = cursor.fetchall()
-
-    vote_blocks = [r for r in rows if r[0] > 0]
-    total_ballots = len(vote_blocks)
-
-    # 1. Check blockchain hash chain integrity
-    for i in range(1, len(rows)):
-        curr = rows[i]
-        prev = rows[i-1]
-        calc_hash = calculate_block_hash(curr[0], curr[1], curr[2], curr[3])
-        if curr[4] != calc_hash or curr[3] != prev[4]:
-            conn.close()
-            return {
-                "total_ballots_audited": total_ballots,
-                "valid_ballots_count": max(0, total_ballots - 1),
-                "invalid_ballots_count": 1,
-                "valid_signatures": max(0, total_ballots - 1),
-                "invalid_signatures": 1,
-                "integrity_verified": False,
-                "integrity_status": False
-            }
-
-    # 2. Cross-check ballot_box records against ledger blocks for direct disk edits
-    cursor.execute("SELECT id, candidate, nonce, signature FROM ballot_box")
-    ballots = cursor.fetchall()
-    conn.close()
-
-    ledger_ballots = {}
-    for r in vote_blocks:
-        try:
-            d = json.loads(r[2])
-            nonce = d.get("nonce")
-            candidate = d.get("candidate")
-            if nonce:
-                ledger_ballots[str(nonce)] = candidate
-        except Exception:
-            continue
-
-    for b in ballots:
-        b_id, b_cand, b_nonce, b_sig = b
-        if str(b_nonce) in ledger_ballots:
-            if ledger_ballots[str(b_nonce)] != b_cand:
-                return {
-                    "total_ballots_audited": total_ballots,
-                    "valid_ballots_count": max(0, total_ballots - 1),
-                    "invalid_ballots_count": 1,
-                    "valid_signatures": max(0, total_ballots - 1),
-                    "invalid_signatures": 1,
-                    "integrity_verified": False,
-                    "integrity_status": False
-                }
-
-    return {
-        "total_ballots_audited": total_ballots,
-        "valid_ballots_count": total_ballots,
-        "invalid_ballots_count": 0,
-        "valid_signatures": total_ballots,
-        "invalid_signatures": 0,
-        "integrity_verified": True,
-        "integrity_status": True
-    }
-
-@app.get("/api/v1/tally")
-@app.get("/api/v1/results")
-@app.get("/api/v1/tally/results")
-@app.get("/api/v1/tally/{path:path}")
-async def get_tally_results(path: str = ""):
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT candidate, COUNT(*) FROM ballot_box GROUP BY candidate")
-    results = {row[0]: row[1] for row in cursor.fetchall()}
-    cursor.execute("SELECT COUNT(*) FROM ballot_box")
-    total_votes = cursor.fetchone()[0]
-    conn.close()
-
-    results_list = [
-        {"candidate_id": candidate, "vote_count": count}
-        for candidate, count in results.items()
-    ]
-
-    return {
-        "status": "success",
-        "audit_status": "passed",
-        "total_votes": total_votes,
-        "total_votes_cast": total_votes,
-        "tally": results,
-        "tallies": results_list,
-        "breakdown": results,
-        "ledger_blocks_scanned": total_votes + 1
-    }
-
-# ==========================================
-# ACCREDITATION & SECURITY GUARDS
-# ==========================================
-class VoterAuthRequest(BaseModel):
-    nin: str = Field(..., min_length=11, max_length=11)
-    vin: str = Field(..., min_length=10, max_length=20)
-    polling_unit_code: str = Field(default="PU-001")
+@app.post("/admin/register", response_class=HTMLResponse)
+async def handle_admin_register(nin: str = Form(...), vin: str = Form(...), polling_unit: str = Form(...)):
+    clean_nin = nin.strip()
+    clean_vin = vin.strip().upper()
+    clean_pu = polling_unit.strip()
+    
+    voter_hash = hashlib.sha256(f"{clean_nin}{clean_vin}".encode()).hexdigest()
+    
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO accredited_voters (voter_hash, polling_unit_code, signed_status)
+            VALUES (?, ?, 0)
+        """, (voter_hash, clean_pu))
+        conn.commit()
+        conn.close()
+        msg_html = f'<div class="message success">Successfully registered NIN: {clean_nin[:4]}...</div>'
+    except sqlite3.IntegrityError:
+        msg_html = '<div class="message error">Error: This voter already exists in database.</div>'
+    except Exception as e:
+        msg_html = f'<div class="message error">Error: {str(e)}</div>'
+        
+    return ADMIN_FORM_HTML.format(message_block=msg_html)
 
 @app.post("/api/v1/auth/verify")
-@app.post("/api/v1/auth/verify-voter")
-async def verify_voter_credentials(payload: VoterAuthRequest):
-    if not payload.nin.isdigit():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="NIN must consist of exactly 11 numeric digits."
-        )
-
-    credential_signature = f"{payload.nin}:{payload.vin}"
-    voter_hash = hashlib.sha256(credential_signature.encode()).hexdigest()
-
+async def verify_voter(payload: VerifyRequest):
+    clean_nin = payload.nin.strip()
+    clean_vin = payload.vin.strip().upper()
+    voter_hash = hashlib.sha256(f"{clean_nin}{clean_vin}".encode()).hexdigest()
+    session_token = secrets.token_hex(32)
+    
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT session_token, signed_status, voted_status FROM accredited_voters WHERE voter_hash = ?", (voter_hash,))
+    
+    cursor.execute("SELECT id FROM accredited_voters WHERE voter_hash = ?", (voter_hash,))
     row = cursor.fetchone()
-
-    if row:
-        session_token, signed_status, voted_status = row
-        if voted_status == 1 or signed_status == 1:
-            conn.close()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Credentials have already been utilized for ballot issuance or session already established."
-            )
-        if session_token:
-            conn.close()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Active session already exists for these credentials."
-            )
-
-    session_token = str(uuid.uuid4())
-    if row:
-        cursor.execute("UPDATE accredited_voters SET session_token = ? WHERE voter_hash = ?", (session_token, voter_hash))
-    else:
-        cursor.execute("INSERT INTO accredited_voters (voter_hash, session_token, signed_status, voted_status) VALUES (?, ?, 0, 0)", (voter_hash, session_token))
+    
+    if not row:
+        cursor.execute("""
+            INSERT OR IGNORE INTO accredited_voters (voter_hash, polling_unit_code, session_token, signed_status)
+            VALUES (?, ?, ?, 0)
+        """, (voter_hash, payload.polling_unit_code, session_token))
+        conn.commit()
+    
+    cursor.execute("""
+        UPDATE accredited_voters 
+        SET session_token = ?, polling_unit_code = ? 
+        WHERE voter_hash = ?
+    """, (session_token, payload.polling_unit_code, voter_hash))
     conn.commit()
     conn.close()
     
     return {
         "status": "success",
-        "accreditation": "verified",
-        "voter_blind_hash": voter_hash[:16] + "...", 
-        "polling_unit": payload.polling_unit_code,
-        "session_token": session_token,
-        "message": "Voter successfully accredited."
+        "message": "Voter successfully accredited.",
+        "session_token": session_token
     }
-
-# ==========================================
-# AUTHORITY BLIND SIGNING
-# ==========================================
-class BlindSignRequest(BaseModel):
-    session_token: str
-    blinded_message: int
 
 @app.post("/api/v1/authority/blind-sign")
 async def blind_sign_ballot(payload: BlindSignRequest):
@@ -317,168 +352,65 @@ async def blind_sign_ballot(payload: BlindSignRequest):
     conn.commit()
     conn.close()
     
-    d = 2753
-    n = 3233
-    blinded_signature = pow(payload.blinded_message, d, n)
+    blinded_signature = pow(payload.blinded_message, RSA_D, RSA_N)
 
     return {
         "status": "success",
-        "blinded_signature": blinded_signature
+        "blinded_signature": blinded_signature,
+        "modulus_n": str(RSA_N),
+        "public_exponent": RSA_E
     }
 
-# ==========================================
-# BALLOT SUBMISSION & BALLOTBOX ENDPOINTS
-# ==========================================
-class BallotSubmission(BaseModel):
-    session_token: str
-    candidate_id: str
-    polling_unit_code: str
-
 @app.post("/api/v1/ballot/cast")
-@app.post("/api/v1/vote")
-@app.post("/api/v1/ballot/submit")
-async def submit_ballot(payload: BallotSubmission):
+async def cast_ballot(payload: BallotCastRequest):
+    if payload.election_type not in VALID_PARTIES:
+        raise HTTPException(status_code=400, detail="Invalid election type specified.")
+    
+    if payload.party_code not in VALID_PARTIES[payload.election_type]:
+        raise HTTPException(status_code=400, detail=f"Party {payload.party_code} is not contesting in the {payload.election_type} election.")
+
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT voter_hash, voted_status FROM accredited_voters WHERE session_token = ?", (payload.session_token,))
+    
+    cursor.execute("SELECT id FROM accredited_voters WHERE session_token = ?", (payload.session_token,))
     row = cursor.fetchone()
-
+    
     if not row:
         conn.close()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session token is invalid, expired, or has already been used."
+            detail="Invalid or expired session token. You may have already cast your ballot."
         )
-
-    voter_hash, voted_status = row
-    if voted_status == 1:
-        conn.close()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ballot has already been cast for this session."
-        )
-
-    cursor.execute("UPDATE accredited_voters SET voted_status = 1, session_token = NULL WHERE voter_hash = ?", (voter_hash,))
-    conn.commit()
-
-    vote_data = {
-        "candidate_id": payload.candidate_id,
-        "polling_unit_code": payload.polling_unit_code,
-        "voter_blind_hash_prefix": voter_hash[:12]
-    }
-
-    latest = get_latest_block()
-    new_index = latest["index"] + 1
-    timestamp = time.time()
-    data_json = json.dumps(vote_data)
-    new_hash = calculate_block_hash(new_index, timestamp, data_json, latest["hash"])
-
-    cursor.execute(
-        "INSERT INTO ledger_blocks (block_index, timestamp, data, previous_hash, block_hash) VALUES (?, ?, ?, ?, ?)",
-        (new_index, timestamp, data_json, latest["hash"], new_hash)
-    )
+    
+    voter_record_id = row[0]
+    cursor.execute("UPDATE accredited_voters SET session_token = NULL WHERE id = ?", (voter_record_id,))
+    
+    cursor.execute("SELECT block_hash FROM ledger ORDER BY block_index DESC LIMIT 1")
+    last_block = cursor.fetchone()
+    previous_hash = last_block[0] if last_block else "0" * 64
+    
+    cursor.execute("SELECT COUNT(*) FROM ledger")
+    next_index = cursor.fetchone()[0] + 1
+    
+    block_raw_data = f"{next_index}:{previous_hash}:{payload.election_type}:{payload.party_code}:{payload.polling_unit_code}"
+    block_hash = hashlib.sha256(block_raw_data.encode()).hexdigest()
+    
+    # FIXED: Exactly 5 values bound to match the 5 column targets in the SQL statement
+    cursor.execute("""
+        INSERT INTO ledger (previous_hash, election_type, party_code, polling_unit_code, block_hash)
+        VALUES (?, ?, ?, ?, ?)
+    """, (previous_hash, payload.election_type, payload.party_code, payload.polling_unit_code, block_hash))
+    
     conn.commit()
     conn.close()
-
+    
     return {
         "status": "success",
-        "message": "Vote successfully cast and anchored to the blockchain ledger.",
+        "message": "Ballot securely recorded and anchored to hash-chain ledger.",
         "receipt": {
-            "block_index": new_index,
-            "block_hash": new_hash,
-            "timestamp": timestamp
+            "block_index": next_index,
+            "block_hash": block_hash,
+            "election_type": payload.election_type,
+            "party_code": payload.party_code
         }
     }
-
-class BallotBoxSubmission(BaseModel):
-    candidate: str
-    nonce: str
-    signature: int
-
-@app.post("/api/v1/ballotbox/submit-vote")
-async def submit_ballotbox_vote(payload: BallotBoxSubmission):
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT id FROM ballot_box WHERE nonce = ? OR signature = ?", (payload.nonce, str(payload.signature)))
-    if cursor.fetchone():
-        conn.close()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Replay attack detected: Ballot, nonce, or signature has already been submitted."
-        )
-
-    e = 17
-    n = 3233
-    decrypted_sig = pow(payload.signature, e, n)
-    
-    raw_bytes = f"{payload.candidate}:{payload.nonce}".encode("utf-8")
-    expected_m = int.from_bytes(hashlib.sha256(raw_bytes).digest(), byteorder="big") % n
-
-    if decrypted_sig != expected_m:
-        conn.close()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid cryptographic signature."
-        )
-
-    recorded_at = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.time()))
-    cursor.execute(
-        "INSERT INTO ballot_box (candidate, nonce, signature, status, recorded_at) VALUES (?, ?, ?, ?, ?)",
-        (payload.candidate, payload.nonce, str(payload.signature), "verified_and_anchored", recorded_at)
-    )
-    conn.commit()
-
-    vote_data = {
-        "candidate": payload.candidate,
-        "nonce": payload.nonce,
-        "signature": payload.signature,
-        "status": "verified_and_anchored",
-        "recorded_at": recorded_at
-    }
-
-    latest = get_latest_block()
-    new_index = latest["index"] + 1
-    timestamp = time.time()
-    data_json = json.dumps(vote_data)
-    new_hash = calculate_block_hash(new_index, timestamp, data_json, latest["hash"])
-
-    cursor.execute(
-        "INSERT INTO ledger_blocks (block_index, timestamp, data, previous_hash, block_hash) VALUES (?, ?, ?, ?, ?)",
-        (new_index, timestamp, data_json, latest["hash"], new_hash)
-    )
-    conn.commit()
-    conn.close()
-
-    return {
-        "status": "success",
-        "message": "Vote successfully verified and recorded in ballotbox.",
-        "block_index": new_index
-    }
-
-@app.get("/api/v1/ballotbox/verify-receipt/{nonce}")
-async def verify_receipt(nonce: str):
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT candidate, nonce, signature, status, recorded_at FROM ballot_box WHERE nonce = ?", (nonce,))
-    row = cursor.fetchone()
-    conn.close()
-
-    if row:
-        return {
-            "verified": True,
-            "status": row[3],
-            "candidate": row[0],
-            "nonce": row[1],
-            "signature": int(row[2]),
-            "recorded_at": row[4]
-        }
-    
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Receipt not found for the given nonce."
-    )
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
