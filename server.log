@@ -1,36 +1,36 @@
-INFO:     Started server process [63385]
+INFO:     Started server process [129322]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:42136 - "GET /docs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42142 - "GET /api/v1/tally/results HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42158 - "GET /docs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42164 - "POST /api/v1/auth/verify HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42174 - "POST /api/v1/authority/blind-sign HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42188 - "POST /api/v1/authority/blind-sign HTTP/1.1" 400 Bad Request
-INFO:     127.0.0.1:42190 - "POST /api/v1/auth/verify HTTP/1.1" 400 Bad Request
-INFO:     127.0.0.1:42194 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 400 Bad Request
-INFO:     127.0.0.1:42206 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42210 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 400 Bad Request
-INFO:     127.0.0.1:42212 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 400 Bad Request
-INFO:     127.0.0.1:42216 - "POST /api/v1/authority/blind-sign HTTP/1.1" 400 Bad Request
-INFO:     127.0.0.1:42220 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42222 - "GET /api/v1/ballotbox/verify-receipt/receipt_test_nonce_9999 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42232 - "GET /api/v1/ballotbox/verify-receipt/non_existent_nonce_0000 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:42236 - "GET /api/v1/tally/results HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42238 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42248 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42254 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42270 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42286 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42288 - "GET /api/v1/tally/results HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42296 - "GET /api/v1/tally/audit HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42310 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42322 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42326 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42338 - "GET /api/v1/tally/audit HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42354 - "GET /api/v1/tally/audit HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54976 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54982 - "GET /api/v1/tally/results HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54992 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54998 - "POST /api/v1/auth/verify HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55008 - "POST /api/v1/authority/blind-sign HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55020 - "POST /api/v1/authority/blind-sign HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:55022 - "POST /api/v1/auth/verify HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:55032 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:55034 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55036 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:55040 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:55056 - "POST /api/v1/authority/blind-sign HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:55060 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55066 - "GET /api/v1/ballotbox/verify-receipt/receipt_test_nonce_9999 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55074 - "GET /api/v1/ballotbox/verify-receipt/non_existent_nonce_0000 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55088 - "GET /api/v1/tally/results HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55102 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55118 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55132 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55138 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55144 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55148 - "GET /api/v1/tally/results HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55158 - "GET /api/v1/tally/audit HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55170 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55186 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55194 - "POST /api/v1/ballotbox/submit-vote HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55208 - "GET /api/v1/tally/audit HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55224 - "GET /api/v1/tally/audit HTTP/1.1" 200 OK
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [63385]
+INFO:     Finished server process [129322]
