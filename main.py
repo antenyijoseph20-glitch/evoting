@@ -643,16 +643,16 @@ ADMIN_FORM_HTML = """
     <meta charset="UTF-8">
     <title>Admin - Register Test Voter</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f9; margin: 0; padding: 40px; display: flex; justify-content: center; }
-        .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
-        h2 { margin-top: 0; color: #004d40; font-size: 22px; text-align: center; }
-        label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; font-size: 14px; }
-        input { width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
-        button { background: #004d40; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 14px; }
-        button:hover { background: #00695c; }
-        .message { padding: 10px; margin-bottom: 20px; border-radius: 4px; font-size: 14px; text-align: center; }
-        .success { background: #e0f2f1; color: #004d40; border: 1px solid #b2dfdb; }
-        .error { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f9; margin: 0; padding: 40px; display: flex; justify-content: center; }}
+        .card {{ background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }}
+        h2 {{ margin-top: 0; color: #004d40; font-size: 22px; text-align: center; }}
+        label {{ display: block; margin-bottom: 8px; font-weight: 600; color: #555; font-size: 14px; }}
+        input {{ width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }}
+        button {{ background: #004d40; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 14px; }}
+        button:hover {{ background: #00695c; }}
+        .message {{ padding: 10px; margin-bottom: 20px; border-radius: 4px; font-size: 14px; text-align: center; }}
+        .success {{ background: #e0f2f1; color: #004d40; border: 1px solid #b2dfdb; }}
+        .error {{ background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }}
     </style>
 </head>
 <body>
@@ -689,17 +689,17 @@ TALLY_DASHBOARD_HTML = """
     <meta charset="UTF-8">
     <title>Admin - Live Election Results Tally</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f9; margin: 0; padding: 40px; color: #333; }
-        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        h2 { margin-top: 0; color: #004d40; font-size: 24px; text-align: center; }
-        .nav-links { text-align: center; margin-bottom: 25px; }
-        .nav-links a { color: #004d40; text-decoration: none; margin: 0 15px; font-weight: 600; font-size: 14px; }
-        .nav-links a:hover { text-decoration: underline; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; font-size: 14px; }
-        th { background-color: #004d40; color: white; }
-        tr:hover { background-color: #f1f8f6; }
-        .total-badge { background: #004d40; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f9; margin: 0; padding: 40px; color: #333; }}
+        .container {{ max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }}
+        h2 {{ margin-top: 0; color: #004d40; font-size: 24px; text-align: center; }}
+        .nav-links {{ text-align: center; margin-bottom: 25px; }}
+        .nav-links a {{ color: #004d40; text-decoration: none; margin: 0 15px; font-weight: 600; font-size: 14px; }}
+        .nav-links a:hover {{ text-decoration: underline; }}
+        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+        th, td {{ padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; font-size: 14px; }}
+        th {{ background-color: #004d40; color: white; }}
+        tr:hover {{ background-color: #f1f8f6; }}
+        .total-badge {{ background: #004d40; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
     </style>
 </head>
 <body>
@@ -752,35 +752,35 @@ async def handle_admin_register(nin: str = Form(...), vin: str = Form(...), poll
     voter_hash = hashlib.sha256(f"{clean_nin}{clean_vin}".encode()).hexdigest()
     
     try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO accredited_voters (voter_hash, polling_unit_code, phone_number, signed_status, voted_status)
-            VALUES (?, ?, ?, 0, 0)
-        """, (voter_hash, clean_pu, clean_phone))
-        conn.commit()
-        conn.close()
+        # Use context manager to prevent database locks
+        with sqlite3.connect(DB_NAME, timeout=10.0) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO accredited_voters (voter_hash, polling_unit_code, phone_number, signed_status, voted_status)
+                VALUES (?, ?, ?, 0, 0)
+            """, (voter_hash, clean_pu, clean_phone))
+            conn.commit()
+            
         msg_html = f'<div class="message success">Successfully registered NIN: {clean_nin}</div>'
     except sqlite3.IntegrityError:
         msg_html = '<div class="message error">Error: This voter already exists in database.</div>'
     except Exception as e:
         msg_html = f'<div class="message error">Error: {str(e)}</div>'
-        
+    
+    # Ensure ADMIN_FORM_HTML has its CSS brackets escaped as {{ and }}
     return ADMIN_FORM_HTML.format(message_block=msg_html)
-
 
 @app.get("/admin/tally", response_class=HTMLResponse)
 async def view_election_tally():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT election_type, party_code, COUNT(*) as vote_count
-        FROM ledger
-        GROUP BY election_type, party_code
-        ORDER BY election_type, vote_count DESC
-    """)
-    results = cursor.fetchall()
-    conn.close()
+    with sqlite3.connect(DB_NAME, timeout=10.0) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT election_type, party_code, COUNT(*) as vote_count
+            FROM ledger
+            GROUP BY election_type, party_code
+            ORDER BY election_type, vote_count DESC
+        """)
+        results = cursor.fetchall()
     
     rows_html = ""
     if not results:
@@ -794,9 +794,9 @@ async def view_election_tally():
                     <td><span class="total-badge">{vote_count}</span></td>
                 </tr>
             """
-            
+    
+    # Ensure TALLY_DASHBOARD_HTML has its CSS brackets escaped as {{ and }}
     return TALLY_DASHBOARD_HTML.format(tally_rows=rows_html)
-
 
 @app.get("/admin/audit/export")
 async def export_audit_ledger():
@@ -827,34 +827,27 @@ async def verify_voter(payload: VerifyRequest):
     voter_hash = hashlib.sha256(f"{clean_nin}{clean_vin}".encode()).hexdigest()
     session_token = secrets.token_hex(32)
     
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT id FROM accredited_voters WHERE voter_hash = ?", (voter_hash,))
-    row = cursor.fetchone()
-    
-    if not row:
+    with sqlite3.connect(DB_NAME, timeout=10.0) as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id FROM accredited_voters WHERE voter_hash = ?", (voter_hash,))
+        row = cursor.fetchone()
+        
+        if not row:
+            cursor.execute("""
+                INSERT OR IGNORE INTO accredited_voters (voter_hash, polling_unit_code, phone_number, signed_status, voted_status)
+                VALUES (?, ?, ?, 0, 0)
+            """, (voter_hash, payload.polling_unit_code, session_token, payload.phone_number))
+            conn.commit()
+        
         cursor.execute("""
-            INSERT OR IGNORE INTO accredited_voters (voter_hash, polling_unit_code, session_token, phone_number, signed_status, voted_status)
-            VALUES (?, ?, ?, ?, 0, 0)
-        """, (voter_hash, payload.polling_unit_code, session_token, payload.phone_number))
+            UPDATE accredited_voters
+            SET session_token = ?, polling_unit_code = ?, phone_number = ?
+            WHERE voter_hash = ?
+        """, (session_token, payload.polling_unit_code, payload.phone_number, voter_hash))
         conn.commit()
-    
-    cursor.execute("""
-        UPDATE accredited_voters 
-        SET session_token = ?, polling_unit_code = ?, phone_number = ? 
-        WHERE voter_hash = ?
-    """, (session_token, payload.polling_unit_code, payload.phone_number, voter_hash))
-    conn.commit()
-    conn.close()
-    
-    return {
-        "status": "success",
-        "message": "Voter database record located and accredited.",
-        "voter_identifier": voter_hash,
-        "session_token": session_token
-    }
-
+        
+    return {"status": "success", "session_token": session_token}
 
 @app.post("/api/v1/authority/blind-sign")
 async def blind_sign_ballot(payload: BlindSignRequest):
@@ -865,77 +858,69 @@ async def blind_sign_ballot(payload: BlindSignRequest):
 
     if not row:
         conn.close()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired session token for signing.")
-
+        raise HTTPException(status_code=401, detail="Invalid session token or voter not accredited.")
+    
     voter_hash, signed_status = row
     if signed_status == 1:
         conn.close()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Blind signature has already been issued for this session.")
+        raise HTTPException(status_code=400, detail="Ballot already blind-signed for this session.")
+
+    # RSA blind signature math: s' = (m' ^ d) mod n
+    blinded_signature = pow(payload.blinded_message, RSA_D, RSA_N)
 
     cursor.execute("UPDATE accredited_voters SET signed_status = 1 WHERE voter_hash = ?", (voter_hash,))
     conn.commit()
     conn.close()
-    
-    blinded_signature = pow(payload.blinded_message, RSA_D, RSA_N)
 
-    return {
-        "status": "success",
-        "blinded_signature": blinded_signature,
-        "modulus_n": str(RSA_N),
-        "public_exponent": RSA_E
-    }
+    return {"status": "success", "blinded_signature": blinded_signature}
 
 
 @app.post("/api/v1/ballot/cast")
 async def cast_ballot(payload: BallotCastRequest):
     if payload.election_type not in VALID_PARTIES:
-        raise HTTPException(status_code=400, detail="Invalid election type specified.")
-    
+        raise HTTPException(status_code=400, detail="Invalid election type.")
     if payload.party_code not in VALID_PARTIES[payload.election_type]:
-        raise HTTPException(status_code=400, detail=f"Party {payload.party_code} is not contesting in the {payload.election_type} election.")
+        raise HTTPException(status_code=400, detail="Invalid political party code for this election tier.")
 
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    
-    cursor.execute("SELECT id, voted_status FROM accredited_voters WHERE session_token = ?", (payload.session_token,))
+    cursor.execute("SELECT voter_hash, voted_status FROM accredited_voters WHERE session_token = ?", (payload.session_token,))
     row = cursor.fetchone()
-    
+
     if not row:
         conn.close()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired session token.")
+        raise HTTPException(status_code=401, detail="Invalid session token.")
     
-    voter_record_id, voted_status = row
+    voter_hash, voted_status = row
     if voted_status == 1:
         conn.close()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A ballot has already been cast using this session token.")
+        raise HTTPException(status_code=400, detail="Voter has already cast their ballot.")
 
-    cursor.execute("UPDATE accredited_voters SET session_token = NULL, voted_status = 1 WHERE id = ?", (voter_record_id,))
-    
+    # Fetch previous block hash for blockchain ledger integrity
     cursor.execute("SELECT block_hash FROM ledger ORDER BY block_index DESC LIMIT 1")
     last_block = cursor.fetchone()
     previous_hash = last_block[0] if last_block else "0" * 64
-    
-    cursor.execute("SELECT COUNT(*) FROM ledger")
-    next_index = cursor.fetchone()[0] + 1
-    
-    block_raw_data = f"{next_index}:{previous_hash}:{payload.election_type}:{payload.party_code}:{payload.polling_unit_code}"
-    block_hash = hashlib.sha256(block_raw_data.encode()).hexdigest()
-    
+
+    timestamp = datetime.now(timezone.utc).isoformat()
+    raw_block_data = f"{previous_hash}{payload.election_type}{payload.party_code}{payload.polling_unit_code}{timestamp}"
+    block_hash = hashlib.sha256(raw_block_data.encode()).hexdigest()
+
     cursor.execute("""
-        INSERT INTO ledger (previous_hash, election_type, party_code, polling_unit_code, block_hash)
-        VALUES (?, ?, ?, ?, ?)
-    """, (previous_hash, payload.election_type, payload.party_code, payload.polling_unit_code, block_hash))
-    
+        INSERT INTO ledger (previous_hash, election_type, party_code, polling_unit_code, block_hash, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (previous_hash, payload.election_type, payload.party_code, payload.polling_unit_code, block_hash, timestamp))
+
+    cursor.execute("UPDATE accredited_voters SET voted_status = 1 WHERE voter_hash = ?", (voter_hash,))
     conn.commit()
     conn.close()
-    
+
     return {
         "status": "success",
-        "message": "Ballot securely recorded and anchored to hash-chain ledger.",
+        "message": "Vote successfully recorded and anchored to the cryptographic ledger.",
         "receipt": {
-            "block_index": next_index,
             "block_hash": block_hash,
-            "election_type": payload.election_type,
-            "party_code": payload.party_code
+            "previous_hash": previous_hash,
+            "timestamp": timestamp,
+            "election_type": payload.election_type
         }
     }
