@@ -1,141 +1,164 @@
+import os
+import sqlite3
+import hashlib
+import numpy as np
+import cv2
 import pytest
 from fastapi.testclient import TestClient
-from main import app, OFFICIAL_PARTIES, LEDGER, VOTES_DB
+
+# Import the FastAPI app from your main module (adjust 'main' if your file is named differently, e.g., 'app.py')
+from main import app, DB_NAME, init_db
 
 client = TestClient(app)
 
 @pytest.fixture(autouse=True)
-def reset_db_state():
-    """Resets the in-memory ledger and votes database before each test."""
-    global LEDGER, VOTES_DB
-    # Preserve genesis block
-    genesis = LEDGER[0]
-    LEDGER.clear()
-    LEDGER.append(genesis)
-    VOTES_DB.clear()
+def setup_test_db():
+    """Ensure a clean test state or initialize default records before tests run."""
+    init_db()
     yield
 
-def test_admin_health():
-    """Verify that the health check endpoint returns online status and correct initial metrics."""
-    response = client.get("/api/v1/admin/health")
+def generate_dummy_face_image():
+    """Generates a valid JPEG image with a simulated face-like rectangle for OpenCV testing."""
+    # Create a 200x200 blank grayscale-convertible image
+    img = np.zeros((300, 300, 3), dtype=np.uint8) * 255
+    # Draw a simulated face rectangle/circle so Haar Cascade might pick it up, 
+    # or test the fallback error response if no face is detected.
+    cv2.rectangle(img, (100, 100), (200, 220), (255, 255, 255), -1)
+    success, encoded_img = cv2.imencode(".jpg", img)
+    return encoded_img.tobytes()
+
+
+def test_read_main_portal():
+    """Test that the root endpoint serves the frontend HTML or handles missing files gracefully."""
+    response = client.get("/")
     assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "HEALTHY"
-    assert data["database_status"] == "ONLINE"
-    assert data["ledger_height"] == 1
-    assert data["total_ballots_cast"] == 0
 
-def test_single_vote_submission_and_zk_receipt():
-    """Verify that a valid vote creates a ZK receipt hash and anchors correctly to the ledger."""
-    # Step 1: Authenticate voter
-    auth_res = client.post("/api/v1/auth/verify", json={
-        "vin": "1234567890123456789",
-        "nin": "12345678901"
-    })
-    assert auth_res.status_code == 200
-    assert auth_res.json()["status"] == "SUCCESS"
 
-    # Step 2: Submit vote
-    vote_payload = {
-        "selections": {
-            "presidential": "All Progressives Congress (APC)",
-            "senatorial": "Peoples Democratic Party (PDP)",
-            "house_of_reps": "Labour Party (LP)"
-        },
-        "nonce": "test_nonce_12345",
-        "signature": 3106
+def test_admin_register_voter():
+    """Test registering a new voter via the admin endpoint."""
+    response = client.post(
+        "/admin/register",
+        data={
+            "nin": "99887766554",
+            "vin": "NG99887766",
+            "polling_unit": "PU-002",
+            "phone_number": "+2347012572796"
+        }
+    )
+    assert response.status_code == 200
+    assert "Register Test Voter" in response.text
+
+
+def test_voter_verification_flow():
+    """Test the complete verification and token-issuance workflow for an eligible voter."""
+    payload = {
+        "nin": "12345678901",
+        "vin": "NG12345678",
+        "polling_unit_code": "PU-001",
+        "phone_number": "+2347012572796"
     }
-    vote_res = client.post("/api/v1/ballotbox/submit-vote", json=vote_payload)
-    assert vote_res.status_code == 200
-    vote_data = vote_res.json()
-    
-    assert "receipt_hash" in vote_data
-    assert "block_hash" in vote_data
-    assert vote_data["total_votes_cast"] == 1
+    response = client.post("/api/v1/auth/verify", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert "session_token" in data
+    assert "voter_identifier" in data
 
-    # Step 3: Verify the receipt hash via public verifier endpoint
-    receipt_hash = vote_data["receipt_hash"]
-    verify_res = client.post("/api/v1/receipt/verify", json={"receipt_hash": receipt_hash})
-    assert verify_res.status_code == 200
-    verify_data = verify_res.json()
-    assert verify_data["verified"] is True
-    assert verify_data["block_id"] == 1
 
-def test_cryptographic_chain_integrity():
-    """Verify that consecutive blocks properly link their previous_hash pointers."""
-    valid_party = list(OFFICIAL_PARTIES)[0]
+def test_otp_dispatch_and_verification():
+    """Test requesting and verifying an SMS OTP code."""
+    voter_id = "test_voter_identifier_123"
+    phone = "+2347012572796"
     
-    # Cast two sequential votes
-    for i in range(2):
-        client.post("/api/v1/ballotbox/submit-vote", json={
-            "selections": {
-                "presidential": valid_party,
-                "senatorial": valid_party,
-                "house_of_reps": valid_party
-            },
-            "nonce": f"nonce_{i}",
-            "signature": 3106
-        })
+    # 1. Send OTP
+    send_response = client.post(
+        "/api/v1/auth/send-otp",
+        json={"voter_identifier": voter_id, "phone_number": phone}
+    )
+    assert send_response.status_code == 200
+    assert send_response.json()["status"] == "success"
+    
+    # Extract the stored OTP directly from the test sqlite database for verification testing
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT otp_code FROM otp_store WHERE voter_identifier = ?", (voter_id,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    assert row is not None
+    active_otp = row[0]
+    
+    # 2. Verify OTP with correct code
+    verify_response = client.post(
+        " /api/v1/auth/verify-otp".strip(),
+        json={"voter_identifier": voter_id, "otp_code": active_otp}
+    )
+    assert verify_response.status_code == 200
+    assert verify_response.json()["status"] == "verified"
 
-    # Check ledger linkage
-    assert len(LEDGER) == 3  # Genesis + 2 votes
-    
-    block_1 = LEDGER[1]
-    block_2 = LEDGER[2]
-    
-    # Block 2's previous_hash must match Block 1's block_hash
-    assert block_2["previous_hash"] == block_1["block_hash"]
-    assert block_1["previous_hash"] == LEDGER[0]["block_hash"]
 
-def test_batch_sync_failure_handling():
-    """Verify that batch sync processes valid votes while correctly isolating and reporting invalid votes."""
-    valid_party = list(OFFICIAL_PARTIES)[0]
-    
-    batch_payload = {
-        "device_id": "test_terminal_01",
-        "votes": [
-            {
-                "selections": {
-                    "presidential": valid_party,
-                    "senatorial": valid_party,
-                    "house_of_reps": valid_party
-                },
-                "nonce": "batch_valid_1",
-                "signature": 3106,
-                "client_timestamp": "2026-09-02T22:00:00Z"
-            },
-            {
-                "selections": {
-                    "presidential": "Invalid Party X",  # Should fail validation
-                    "senatorial": valid_party,
-                    "house_of_reps": valid_party
-                },
-                "nonce": "batch_invalid_2",
-                "signature": 3106,
-                "client_timestamp": "2026-09-02T22:00:01Z"
-            }
-        ]
+def test_biometric_face_verification():
+    """Test the facial recognition endpoint with a generated multipart file upload."""
+    image_bytes = generate_dummy_face_image()
+    response = client.post(
+        "/api/v1/biometric/verify-face",
+        files={"file": ("snapshot.jpg", image_bytes, "image/jpeg")}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "status" in data
+
+
+def test_cryptographic_blind_sign_and_ballot_cast():
+    """Test the zero-knowledge blind signing and secure ballot casting lifecycle."""
+    # Step A: Verify voter to acquire a valid session token
+    verify_payload = {
+        "nin": "55443322110",
+        "vin": "NG55443322",
+        "polling_unit_code": "PU-003",
+        "phone_number": "+2347012572796"
     }
+    v_resp = client.post("/api/v1/auth/verify", json=verify_payload)
+    assert v_resp.status_code == 200
+    session_token = v_resp.json()["session_token"]
+    
+    # Step B: Request Blind Signature
+    blind_payload = {
+        "session_token": session_token,
+        "blinded_message": 123456789
+    }
+    b_resp = client.post("/api/v1/authority/blind-sign", json=blind_payload)
+    assert b_resp.status_code == 200
+    b_data = b_resp.json()
+    assert b_data["status"] == "success"
+    assert "blinded_signature" in b_data
+    
+    # Step C: Cast Ballot using the same session token
+    ballot_payload = {
+        "session_token": session_token,
+        "election_type": "PRESIDENTIAL",
+        "party_code": "APC",
+        "polling_unit_code": "PU-003"
+    }
+    cast_resp = client.post("/api/v1/ballot/cast", json=ballot_payload)
+    assert cast_resp.status_code == 200
+    cast_data = cast_resp.json()
+    assert cast_data["status"] == "success"
+    assert "receipt" in cast_data
+    
+    # Step D: Verify double-voting prevention (reusing session token should fail)
+    duplicate_cast = client.post("/api/v1/ballot/cast", json=ballot_payload)
+    assert duplicate_cast.status_code == 400
 
-    response = client.post("/api/v1/ballotbox/sync-batch", json=batch_payload)
-    assert response.status_code == 200
-    data = response.json()
 
-    assert data["status"] == "SYNC_COMPLETE"
-    assert data["processed_count"] == 1
-    assert data["failed_count"] == 1
-    assert len(data["failed_votes"]) == 1
-    assert data["failed_votes"][0]["nonce"] == "batch_invalid_2"
-    assert "invalid party" in data["failed_votes"][0]["reason"].lower()
-
-    # Ensure only the valid vote was added to the ledger
-    assert len(VOTES_DB) == 1
-    assert len(LEDGER) == 2  # Genesis + 1 successful batch vote
-
-def test_ledger_audit_endpoint():
-    """Verify the audit endpoint reports integrity status successfully."""
-    response = client.get("/api/v1/tally/audit")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "AUDIT_COMPLETE"
-    assert data["integrity_verified"] is True
+def test_admin_dashboards_and_audit_export():
+    """Test admin tally view and cryptographic ledger export."""
+    tally_response = client.get("/admin/tally")
+    assert tally_response.status_code == 200
+    assert "Live Election Results Tally" in tally_response.text
+    
+    export_response = client.get("/admin/audit/export")
+    assert export_response.status_code == 200
+    export_data = export_response.json()
+    assert export_data["status"] == "success"
+    assert "ledger" in export_data
