@@ -3,223 +3,391 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nigeria E2E-V Secure Voting Portal</title>
+    <title>Nigeria E2E-V Voting Portal - Biometric Verification</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f4f8; color: #333; margin: 0; padding: 40px; }
-        .container { max-width: 700px; background: #fff; padding: 40px; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); margin: auto; }
-        h1 { color: #004d40; text-align: center; margin-bottom: 5px; }
-        .subtitle { text-align: center; color: #555; margin-bottom: 30px; font-size: 14px; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50; }
-        input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
-        input:focus, select:focus { outline: none; border-color: #004d40; box-shadow: 0 0 0 3px rgba(0,77,64,0.1); }
-        button { background: #004d40; color: white; border: none; padding: 14px; width: 100%; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-        button:hover { background: #00695c; }
-        #result { margin-top: 25px; padding: 20px; background: #e0f2f1; border-radius: 6px; display: none; word-break: break-all; border-left: 5px solid #004d40; }
-        .step-section { display: none; }
-        .step-section.active { display: block; }
-        .party-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 10px; }
-        .party-card { border: 2px solid #cbd5e1; border-radius: 8px; padding: 15px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; background: #fafafa; }
-        .party-card:hover { border-color: #004d40; background: #f1f8f6; }
-        .party-card.selected { border-color: #004d40; background: #e0f2f1; box-shadow: 0 0 0 2px rgba(0,77,64,0.2); }
-        .party-info { display: flex; align-items: center; gap: 15px; }
-        .party-logo { width: 45px; height: 45px; border-radius: 50%; background: #004d40; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; }
-        .party-name { font-weight: 600; font-size: 16px; color: #1e293b; }
-        .party-desc { font-size: 12px; color: #64748b; }
-        .radio-box { width: 20px; height: 20px; border: 2px solid #cbd5e1; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        .party-card.selected .radio-box::after { content: ''; width: 10px; height: 10px; background: #004d40; border-radius: 50%; }
+        :root {
+            --primary-green: #008751;
+            --light-green: #f2f9f5;
+            --accent-green: #00663b;
+            --bg-color: #eaf4ef;
+            --card-bg: #ffffff;
+            --text-main: #2c3e50;
+            --border-color: #bce3cc;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 135, 81, 0.15);
+            border-top: 6px solid var(--primary-green);
+        }
+
+        h1 {
+            color: var(--primary-green);
+            text-align: center;
+            margin-bottom: 5px;
+            font-size: 24px;
+        }
+
+        p.subtitle {
+            text-align: center;
+            color: #555;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+
+        .section-card {
+            background: var(--light-green);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        h3 {
+            margin-top: 0;
+            color: var(--accent-green);
+            font-size: 17px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #333;
+            font-size: 13px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #a3d9bc;
+            border-radius: 6px;
+            font-size: 14px;
+            background: #fff;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px rgba(0, 135, 81, 0.1);
+        }
+
+        button {
+            background-color: var(--primary-green);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            width: 100%;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        button:hover {
+            background-color: var(--accent-green);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .camera-box {
+            background: #000;
+            border-radius: 6px;
+            height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #a3d9bc;
+            margin-bottom: 15px;
+            font-size: 14px;
+            text-align: center;
+            border: 2px dashed var(--primary-green);
+        }
+
+        #error-msg {
+            color: #c0392b;
+            background: #fde8e8;
+            border: 1px solid #f5c6c6;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 14px;
+            display: none;
+        }
+
+        #success-msg {
+            color: var(--accent-green);
+            background: #e6f4ed;
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .step-hidden {
+            display: none;
+        }
+        
+        .admin-links {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 13px;
+        }
+        .admin-links a {
+            color: var(--primary-green);
+            text-decoration: none;
+            margin: 0 10px;
+            font-weight: 600;
+        }
+        .admin-links a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
+
     <div class="container">
-        <h1>Nigeria E2E-V Voting Portal</h1>
-        <div class="subtitle">Cryptographically Verifiable End-to-End Electronic Voting System</div>
-        
-        <!-- STEP 1: ACCREDITATION -->
-        <div id="step-auth" class="step-section active">
-            <h3>Step 1: Voter Accreditation</h3>
+        <h1>🇳🇬 Nigeria E2E-V Portal</h1>
+        <p class="subtitle">Secure Biometric Verification & Voting System</p>
+
+        <!-- STEP 1: IDENTITY LOOKUP (NIN & VIN) -->
+        <div id="step-1-card" class="section-card">
+            <h3>Step 1: Voter Identity Lookup</h3>
             <div class="form-group">
                 <label for="nin">National Identification Number (NIN - 11 digits):</label>
-                <input type="text" id="nin" maxlength="11" placeholder="Enter 11-digit NIN">
+                <input type="text" id="nin" placeholder="e.g., 12345678901" value="12345678901" maxlength="11">
             </div>
+
             <div class="form-group">
                 <label for="vin">Voter Identification Number (VIN):</label>
-                <input type="text" id="vin" placeholder="Enter Voter ID / VIN">
+                <input type="text" id="vin" placeholder="e.g., NG12345678" value="NG12345678">
             </div>
-            <button onclick="verifyVoter()">Accredit & Request Session</button>
+
+            <button onclick="handleIdentityLookup()">Proceed to Facial Verification</button>
         </div>
 
-        <!-- STEP 2: CAST BALLOT -->
-        <div id="step-vote" class="step-section">
-            <h3>Step 2: Cast Your Secure Ballot</h3>
-            <p style="font-size: 13px; color: #666; margin-bottom: 20px;">Session Token Active. Select the election tier and your preferred political party ballot space.</p>
+        <!-- STEP 2: BIOMETRIC FACIAL VERIFICATION -->
+        <div id="step-2-card" class="section-card step-hidden">
+            <h3>Step 2: Biometric Facial Authentication</h3>
+            <p style="font-size: 13px; color: #555;">Position your face in front of the camera to match your national biometric profile.</p>
+            
+            <div class="camera-box" id="camera-preview">
+                📷 [Live Camera Feed Active - OpenCV Haar Cascade]
+            </div>
+
+            <button onclick="handleBiometricVerify()">Capture & Verify Biometrics</button>
+        </div>
+
+        <!-- STEP 3: BALLOT CASTING -->
+        <div id="step-3-card" class="section-card step-hidden">
+            <h3>Step 3: Cast Your Secure Ballot</h3>
+            <p style="font-size: 13px; color: #555;">Biometrics verified & Accredited! Select your election tier and preferred party.</p>
             
             <div class="form-group">
-                <label for="election_type">Select Election Tier:</label>
-                <select id="election_type" onchange="updateParties()">
-                    <option value="PRESIDENTIAL">2027 Presidential Election</option>
-                    <option value="SENATORIAL">Senatorial District Election</option>
-                    <option value="HOUSE_OF_REPS">House of Representatives Election</option>
+                <label for="election-tier">Select Election Tier:</label>
+                <select id="election-tier">
+                    <option value="PRESIDENTIAL">Presidential Election</option>
+                    <option value="GOVERNOR">Gubernatorial Election</option>
+                    <option value="SENATE">Senatorial Election</option>
+                    <option value="HOUSE_OF_REPS">House of Representatives</option>
+                    <option value="HOUSE_OF_ASSEMBLY">House of Assembly</option>
                 </select>
             </div>
 
             <div class="form-group">
-                <label>Select Political Party Ballot Space:</label>
-                <div id="party-container" class="party-grid">
-                    <!-- Populated dynamically -->
-                </div>
+                <label for="party-code">Select Political Party Ballot Space:</label>
+                <select id="party-code">
+                    <option value="APC">All Progressives Congress (APC)</option>
+                    <option value="PDP">Peoples Democratic Party (PDP)</option>
+                    <option value="LP">Labour Party (LP)</option>
+                    <option value="NNPP">New Nigeria Peoples Party (NNPP)</option>
+                    <option value="APGA">All Progressives Grand Alliance (APGA)</option>
+                </select>
             </div>
 
-            <button onclick="castBallot()" style="margin-top: 20px;">Submit Secure Vote</button>
+            <button onclick="handleCastVote()">Submit Secure Vote</button>
         </div>
 
-        <div id="result"></div>
+        <div id="error-msg"></div>
+        <div id="success-msg"></div>
+        
+        <div class="admin-links">
+            <a href="/admin/register" target="_blank">Admin Register Voter</a> | 
+            <a href="/admin/tally" target="_blank">Live Tally</a> | 
+            <a href="/admin/audit/export" target="_blank">Audit Ledger</a>
+        </div>
     </div>
 
     <script>
+        let voterHashGlobal = null;
         let sessionToken = null;
-        let selectedParty = null;
 
-        const partiesData = {
-            "PRESIDENTIAL": [
-                { code: "APC", name: "All Progressives Congress", symbol: "Broom", color: "#006600" },
-                { code: "PDP", name: "Peoples Democratic Party", symbol: "Umbrella", color: "#e31b23" },
-                { code: "LP", name: "Labour Party", symbol: "Mama, Papa, Pikin", color: "#1d4ed8" },
-                { code: "NNPP", name: "New Nigeria Peoples Party", symbol: "Basket", color: "#d97706" }
-            ],
-            "SENATORIAL": [
-                { code: "APC", name: "All Progressives Congress", symbol: "Broom", color: "#006600" },
-                { code: "PDP", name: "Peoples Democratic Party", symbol: "Umbrella", color: "#e31b23" },
-                { code: "LP", name: "Labour Party", symbol: "Mama, Papa, Pikin", color: "#1d4ed8" },
-                { code: "NNPP", name: "New Nigeria Peoples Party", symbol: "Basket", color: "#d97706" }
-            ],
-            "HOUSE_OF_REPS": [
-                { code: "APC", name: "All Progressives Congress", symbol: "Broom", color: "#006600" },
-                { code: "PDP", name: "Peoples Democratic Party", symbol: "Umbrella", color: "#e31b23" },
-                { code: "LP", name: "Labour Party", symbol: "Mama, Papa, Pikin", color: "#1d4ed8" },
-                { code: "PRP", name: "People's Redemption Party", symbol: "Key", color: "#7c2d12" }
-            ]
-        };
-
-        function updateParties() {
-            const tier = document.getElementById('election_type').value;
-            const container = document.getElementById('party-container');
-            container.innerHTML = '';
-            selectedParty = null;
-
-            partiesData[tier].forEach(party => {
-                const card = document.createElement('div');
-                card.className = 'party-card';
-                card.onclick = () => selectParty(party.code, card);
-                
-                card.innerHTML = `
-                    <div class="party-info">
-                        <div class="party-logo" style="background: ${party.color}">${party.code}</div>
-                        <div>
-                            <div class="party-name">${party.name}</div>
-                            <div class="party-desc">Symbol: ${party.symbol}</div>
-                        </div>
-                    </div>
-                    <div class="radio-box"></div>
-                `;
-                container.appendChild(card);
-            });
-        }
-
-        function selectParty(code, element) {
-            document.querySelectorAll('.party-card').forEach(c => c.classList.remove('selected'));
-            element.classList.add('selected');
-            selectedParty = code;
-        }
-
-        async function verifyVoter() {
+        async function handleIdentityLookup() {
             const nin = document.getElementById('nin').value.trim();
             const vin = document.getElementById('vin').value.trim();
-            const resultDiv = document.getElementById('result');
+            const errDiv = document.getElementById('error-msg');
+            const succDiv = document.getElementById('success-msg');
 
-            if (nin.length !== 11 || !vin) {
-                alert("Please enter a valid 11-digit NIN and VIN.");
-                return;
-            }
+            errDiv.style.display = 'none';
+            succDiv.style.display = 'none';
 
             try {
                 const response = await fetch('/api/v1/auth/verify', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ nin: nin, vin: vin, polling_unit_code: "PU-001" })
+                    body: JSON.stringify({ 
+                        nin: nin, 
+                        vin: vin, 
+                        polling_unit_code: "PU-001", 
+                        phone_number: "+2347012572796" 
+                    })
                 });
 
                 const data = await response.json();
-                resultDiv.style.display = 'block';
-
-                if (response.ok) {
-                    sessionToken = data.session_token;
-                    resultDiv.style.background = '#e0f2f1';
-                    resultDiv.style.borderLeftColor = '#004d40';
-                    resultDiv.innerHTML = `<strong>Accreditation Successful!</strong><br>Loading election ballots...`;
-                    
-                    setTimeout(() => {
-                        document.getElementById('step-auth').classList.remove('active');
-                        document.getElementById('step-vote').classList.add('active');
-                        updateParties();
-                        resultDiv.style.display = 'none';
-                    }, 1500);
-                } else {
-                    resultDiv.style.background = '#ffebee';
-                    resultDiv.style.borderLeftColor = '#c62828';
-                    resultDiv.innerHTML = `<strong>Accreditation Error:</strong> ${data.detail || 'Verification failed.'}`;
+                
+                if (!response.ok) {
+                    let errorMsg = 'Identity lookup failed.';
+                    if (data.detail) {
+                        if (typeof data.detail === 'string') {
+                            errorMsg = data.detail;
+                        } else if (Array.isArray(data.detail)) {
+                            errorMsg = data.detail.map(err => `${err.loc.join(' -> ')}: ${err.msg}`).join(', ');
+                        } else {
+                            errorMsg = JSON.stringify(data.detail);
+                        }
+                    }
+                    throw new Error(errorMsg);
                 }
+
+                voterHashGlobal = data.voter_identifier;
+                sessionToken = data.session_token;
+                
+                succDiv.innerText = "Identity verified! Proceeding to facial capture...";
+                succDiv.style.display = 'block';
+
+                setTimeout(() => {
+                    document.getElementById('step-1-card').style.display = 'none';
+                    document.getElementById('step-2-card').style.display = 'block';
+                    succDiv.style.display = 'none';
+                }, 1000);
+
             } catch (err) {
-                resultDiv.style.display = 'block';
-                resultDiv.style.background = '#ffebee';
-                resultDiv.innerHTML = `<strong>Network Error:</strong> Could not connect to backend core.`;
+                errDiv.innerText = "Lookup Error: " + err.message;
+                errDiv.style.display = 'block';
             }
         }
 
-        async function castBallot() {
-            const electionType = document.getElementById('election_type').value;
-            const resultDiv = document.getElementById('result');
+        async function handleBiometricVerify() {
+            const errDiv = document.getElementById('error-msg');
+            const succDiv = document.getElementById('success-msg');
 
-            if (!sessionToken) {
-                alert("No active session token found.");
-                return;
+            errDiv.style.display = 'none';
+            succDiv.style.display = 'none';
+
+            try {
+                // Generate a blank dummy image blob to simulate face snapshot upload
+                const dummyCanvas = document.createElement('canvas');
+                dummyCanvas.width = 100;
+                dummyCanvas.height = 100;
+                const blob = await new Promise(resolve => dummyCanvas.toBlob(resolve, 'image/jpeg'));
+                
+                const formData = new FormData();
+                formData.append("file", blob, "snapshot.jpg");
+
+                const response = await fetch('/api/v1/biometric/verify-face', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Biometric facial match failed.');
+
+                if (data.status === 'failed') {
+                    throw new Error(data.message);
+                }
+
+                succDiv.innerText = "Biometric Match Successful! Polling unit accreditation unlocked.";
+                succDiv.style.display = 'block';
+
+                setTimeout(() => {
+                    document.getElementById('step-2-card').style.display = 'none';
+                    document.getElementById('step-3-card').style.display = 'block';
+                    succDiv.style.display = 'none';
+                }, 1200);
+
+            } catch (err) {
+                errDiv.innerText = "Biometric Error: " + err.message;
+                errDiv.style.display = 'block';
             }
-            if (!selectedParty) {
-                alert("Please select a political party ballot space before submitting.");
-                return;
-            }
+        }
+
+        async function handleCastVote() {
+            const electionType = document.getElementById('election-tier').value;
+            const partyCode = document.getElementById('party-code').value;
+            const errDiv = document.getElementById('error-msg');
+            const succDiv = document.getElementById('success-msg');
+
+            errDiv.style.display = 'none';
+            succDiv.style.display = 'none';
 
             try {
                 const response = await fetch('/api/v1/ballot/cast', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
                     body: JSON.stringify({
                         session_token: sessionToken,
                         election_type: electionType,
-                        party_code: selectedParty,
+                        party_code: partyCode,
                         polling_unit_code: "PU-001"
                     })
                 });
 
                 const data = await response.json();
-                resultDiv.style.display = 'block';
-
-                if (response.ok) {
-                    resultDiv.style.background = '#e0f2f1';
-                    resultDiv.style.borderLeftColor = '#004d40';
-                    resultDiv.innerHTML = `<strong>Vote Successfully Cast & Anchored!</strong><br>
-                        <strong>Election Tier:</strong> ${electionType}<br>
-                        <strong>Party Voted:</strong> ${selectedParty}<br>
-                        <strong>Ledger Hash:</strong> <code>${data.receipt.block_hash}</code>`;
-                } else {
-                    resultDiv.style.background = '#ffebee';
-                    resultDiv.style.borderLeftColor = '#c62828';
-                    resultDiv.innerHTML = `<strong>Submission Error:</strong> ${data.detail || 'Ballot casting failed.'}`;
+                if (!response.ok) {
+                    let errorMsg = 'Failed to cast ballot.';
+                    if (data.detail) {
+                        errorMsg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                    }
+                    throw new Error(errorMsg);
                 }
+
+                succDiv.innerText = "Vote successfully cast and cryptographically anchored to ledger! Receipt hash: " + data.receipt.block_hash.substring(0, 16) + "...";
+                succDiv.style.display = 'block';
+
             } catch (err) {
-                resultDiv.style.display = 'block';
-                resultDiv.style.background = '#ffebee';
-                resultDiv.innerHTML = `<strong>Network Error:</strong> Could not submit ballot.`;
+                errDiv.innerText = "Voting Error: " + err.message;
+                errDiv.style.display = 'block';
             }
         }
     </script>

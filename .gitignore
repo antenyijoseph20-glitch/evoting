@@ -1,1 +1,18 @@
+# --- Python Virtual Environment ---
 venv/
+env/
+ENV/
+
+# --- Database Files ---
+*.db
+*.sqlite3
+
+# --- Python Cache & Compiled Files ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- IDEs & OS Specific ---
+.vscode/
+.idea/
+.DS_Store
