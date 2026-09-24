@@ -6,7 +6,6 @@ import hashlib
 import secrets
 from math import gcd
 import time
-import requests
 
 def wait_for_server(url="http://127.0.0.1:8000/docs", timeout=10):
     start = time.time()

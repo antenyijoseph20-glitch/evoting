@@ -1,7 +1,6 @@
 # --- Python Virtual Environment ---
-venv/
-env/
-ENV/
+.venv
+
 
 # --- Database Files ---
 *.db
@@ -9,6 +8,7 @@ ENV/
 
 # --- Python Cache & Compiled Files ---
 __pycache__/
+*.pyc
 *.py[cod]
 *$py.class
 
