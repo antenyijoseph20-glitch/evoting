@@ -1,18 +1,30 @@
-# --- Python Virtual Environment ---
-.venv
+# Python virtual environments
+venv/
+.venv/
+env/
 
+# Python cache
+__pycache__/
+*.py[cod]
 
-# --- Database Files ---
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases
 *.db
+*.sqlite
 *.sqlite3
 
-# --- Python Cache & Compiled Files ---
-__pycache__/
-*.pyc
-*.py[cod]
-*$py.class
+# Environment / secrets
+.env
+.env.*
+!.env.example
 
-# --- IDEs & OS Specific ---
+# IDE / editor
 .vscode/
 .idea/
+
+# OS files
 .DS_Store
