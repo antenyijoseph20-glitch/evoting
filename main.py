@@ -924,3 +924,13 @@ async def cast_ballot(payload: BallotCastRequest):
             "election_type": payload.election_type
         }
     }
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "main:app",
+        host="127.0.0.1",
+        port=8000,
+        reload=False,
+    )
