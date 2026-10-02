@@ -1,0 +1,837 @@
+"""
+MOBILE-FIRST VOTER INTERFACE - STEP 9
+Simple, lightweight HTML/CSS/JS interface optimized for Nigerian mobile phones.
+Works on basic 2G phones, low bandwidth, and supports SMS fallback.
+No JavaScript frameworks - pure HTML5 for maximum compatibility.
+"""
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a472a">
+    <title>Nigeria Secure E-Voting - Vote Now</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #1a472a 0%, #2d5f3f 100%);
+            min-height: 100vh;
+            padding: 10px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1a472a 0%, #2d5f3f 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .flag-icon {
+            font-size: 28px;
+            margin-right: 8px;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .form-section {
+            display: none;
+        }
+
+        .form-section.active {
+            display: block;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #1a472a;
+            font-size: 14px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #1a472a;
+            box-shadow: 0 0 0 3px rgba(26, 71, 42, 0.1);
+        }
+
+        input[type="radio"], input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+        }
+
+        .radio-group, .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .radio-option, .checkbox-option {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .radio-option:hover, .checkbox-option:hover {
+            background: #f5f5f5;
+            border-color: #1a472a;
+        }
+
+        .radio-option.selected, .checkbox-option.selected {
+            background: #e8f3eb;
+            border-color: #1a472a;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #1a472a;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0f2f1a;
+            box-shadow: 0 4px 8px rgba(26, 71, 42, 0.3);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #1a472a;
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .alert {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .alert-success {
+            background: #e8f3eb;
+            color: #0f2f1a;
+            border-left: 4px solid #1a472a;
+        }
+
+        .alert-error {
+            background: #ffe0e0;
+            color: #8b0000;
+            border-left: 4px solid #ff0000;
+        }
+
+        .alert-info {
+            background: #e0f4ff;
+            color: #003d7a;
+            border-left: 4px solid #0066ff;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .step {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            font-size: 12px;
+            color: #999;
+        }
+
+        .step.active {
+            color: #1a472a;
+            font-weight: 600;
+        }
+
+        .step.completed {
+            color: #2d5f3f;
+        }
+
+        .step-number {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            line-height: 28px;
+            border-radius: 50%;
+            background: #e0e0e0;
+            margin-bottom: 5px;
+        }
+
+        .step.active .step-number {
+            background: #1a472a;
+            color: white;
+        }
+
+        .step.completed .step-number {
+            background: #2d5f3f;
+            color: white;
+        }
+
+        .receipt-box {
+            background: #f5f5f5;
+            padding: 16px;
+            border-radius: 6px;
+            border-left: 4px solid #1a472a;
+            font-family: monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            word-break: break-all;
+        }
+
+        .receipt-label {
+            font-weight: 600;
+            color: #1a472a;
+            margin-top: 8px;
+            margin-bottom: 4px;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #1a472a;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .footer {
+            background: #f9f9f9;
+            padding: 12px 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .footer a {
+            color: #1a472a;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 480px) {
+            .content {
+                padding: 16px;
+            }
+
+            button {
+                font-size: 14px;
+                padding: 12px;
+            }
+
+            input, select, textarea {
+                font-size: 16px; /* Prevent zoom on iOS */
+            }
+        }
+
+        .icon {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><span class="flag-icon">🇳🇬</span>Nigeria E-Voting</h1>
+            <p>Secure • Transparent • Accessible</p>
+        </div>
+
+        <div class="content">
+            <!-- Step Indicator -->
+            <div class="step-indicator" id="stepIndicator">
+                <div class="step active" data-step="1">
+                    <div class="step-number">1</div>
+                    <div>Register</div>
+                </div>
+                <div class="step" data-step="2">
+                    <div class="step-number">2</div>
+                    <div>Verify</div>
+                </div>
+                <div class="step" data-step="3">
+                    <div class="step-number">3</div>
+                    <div>OTP</div>
+                </div>
+                <div class="step" data-step="4">
+                    <div class="step-number">4</div>
+                    <div>Ballot</div>
+                </div>
+                <div class="step" data-step="5">
+                    <div class="step-number">5</div>
+                    <div>Vote</div>
+                </div>
+            </div>
+
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar"></div>
+            </div>
+
+            <!-- Step 1: Voter Registration -->
+            <div class="form-section active" id="step1">
+                <h2 style="margin-bottom: 16px; color: #1a472a; font-size: 18px;">Step 1: Voter Registration</h2>
+                <div id="alertBox"></div>
+
+                <div class="form-group">
+                    <label for="nin">National ID Number (NIN)</label>
+                    <input type="text" id="nin" placeholder="11-digit NIN" maxlength="11" inputmode="numeric">
+                    <small style="color: #999; margin-top: 4px; display: block;">Enter your 11-digit National ID</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="vin">Voter ID (VIN)</label>
+                    <input type="text" id="vin" placeholder="e.g., LG12345678" maxlength="10" style="text-transform: uppercase;">
+                    <small style="color: #999; margin-top: 4px; display: block;">Your Voter Identification Number</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="fullName">Full Name</label>
+                    <input type="text" id="fullName" placeholder="As it appears on your ID">
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">Phone Number</label>
+                    <input type="tel" id="phone" placeholder="+2347012572796" inputmode="tel">
+                    <small style="color: #999; margin-top: 4px; display: block;">Nigerian number starting with +234 or 0</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="state">State of Registration</label>
+                    <select id="state">
+                        <option value="">-- Select State --</option>
+                        <option value="ABIA">Abia</option>
+                        <option value="ADAMAWA">Adamawa</option>
+                        <option value="AKWA_IBOM">Akwa Ibom</option>
+                        <option value="ANAMBRA">Anambra</option>
+                        <option value="BAUCHI">Bauchi</option>
+                        <option value="BAYELSA">Bayelsa</option>
+                        <option value="BENUE">Benue</option>
+                        <option value="BORNO">Borno</option>
+                        <option value="CROSS_RIVER">Cross River</option>
+                        <option value="DELTA">Delta</option>
+                        <option value="EBONYI">Ebonyi</option>
+                        <option value="EDO">Edo</option>
+                        <option value="EKITI">Ekiti</option>
+                        <option value="ENUGU">Enugu</option>
+                        <option value="FCT">FCT</option>
+                        <option value="GOMBE">Gombe</option>
+                        <option value="IMO">Imo</option>
+                        <option value="JIGAWA">Jigawa</option>
+                        <option value="KADUNA">Kaduna</option>
+                        <option value="KANO">Kano</option>
+                        <option value="KATSINA">Katsina</option>
+                        <option value="KEBBI">Kebbi</option>
+                        <option value="KOGI">Kogi</option>
+                        <option value="KWARA">Kwara</option>
+                        <option value="LAGOS">Lagos</option>
+                        <option value="NASARAWA">Nasarawa</option>
+                        <option value="NIGER">Niger</option>
+                        <option value="OGUN">Ogun</option>
+                        <option value="ONDO">Ondo</option>
+                        <option value="OSUN">Osun</option>
+                        <option value="OYO">Oyo</option>
+                        <option value="PLATEAU">Plateau</option>
+                        <option value="RIVERS">Rivers</option>
+                        <option value="SOKOTO">Sokoto</option>
+                        <option value="TARABA">Taraba</option>
+                        <option value="YOBE">Yobe</option>
+                        <option value="ZAMFARA">Zamfara</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="pollingUnit">Polling Unit Code</label>
+                    <input type="text" id="pollingUnit" placeholder="e.g., PU-004">
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-primary" onclick="registerVoter()">
+                        <span class="icon">→</span>Next
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 2: Authentication -->
+            <div class="form-section" id="step2">
+                <h2 style="margin-bottom: 16px; color: #1a472a; font-size: 18px;">Step 2: Voter Verification</h2>
+                <p style="margin-bottom: 16px; color: #666; font-size: 14px;">Verifying your credentials...</p>
+                <div id="authAlert"></div>
+
+                <div class="form-group">
+                    <label>NIN: <span id="displayNIN" style="color: #1a472a; font-weight: 600;"></span></label>
+                    <label>VIN: <span id="displayVIN" style="color: #1a472a; font-weight: 600;"></span></label>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="previousStep()">Back</button>
+                    <button class="btn-primary" onclick="authenticateVoter()">
+                        <span class="icon">→</span>Verify
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 3: OTP Verification -->
+            <div class="form-section" id="step3">
+                <h2 style="margin-bottom: 16px; color: #1a472a; font-size: 18px;">Step 3: OTP Verification</h2>
+                <p style="margin-bottom: 16px; color: #666; font-size: 14px;">An OTP has been sent to your phone.</p>
+                <div id="otpAlert"></div>
+
+                <div class="form-group">
+                    <label for="otpCode">Enter OTP Code</label>
+                    <input type="text" id="otpCode" placeholder="6-digit code" maxlength="6" inputmode="numeric" style="letter-spacing: 8px; font-size: 18px; text-align: center;">
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="previousStep()">Back</button>
+                    <button class="btn-primary" onclick="verifyOTP()">
+                        <span class="icon">→</span>Verify OTP
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 4: Ballot Selection -->
+            <div class="form-section" id="step4">
+                <h2 style="margin-bottom: 16px; color: #1a472a; font-size: 18px;">Step 4: Select Your Candidate</h2>
+                <p style="margin-bottom: 16px; color: #666; font-size: 14px;">Choose the party and candidate you wish to vote for.</p>
+                <div id="ballotAlert"></div>
+
+                <div class="form-group">
+                    <label>Which election tier?</label>
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="electionType" value="PRESIDENTIAL"> Presidential
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="electionType" value="GUBERNATORIAL"> Gubernatorial
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="electionType" value="SENATORIAL"> Senatorial
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Select Political Party</label>
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="party" value="APC"> APC - All Progressives Congress
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="party" value="PDP"> PDP - Peoples Democratic Party
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="party" value="LP"> LP - Labour Party
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="party" value="NNPP"> NNPP - New Nigeria Peoples Party
+                        </label>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="previousStep()">Back</button>
+                    <button class="btn-primary" onclick="issueBallot()">
+                        <span class="icon">→</span>Issue Ballot
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 5: Vote Confirmation -->
+            <div class="form-section" id="step5">
+                <h2 style="margin-bottom: 16px; color: #1a472a; font-size: 18px;">Step 5: Confirm Your Vote</h2>
+                <p style="margin-bottom: 16px; color: #666; font-size: 14px;">Please review and confirm your vote. You cannot change it after submission.</p>
+                <div id="voteAlert"></div>
+
+                <div style="background: #f5f5f5; padding: 16px; border-radius: 6px; margin-bottom: 16px;">
+                    <div style="margin-bottom: 8px;"><strong>Election:</strong> <span id="reviewElection"></span></div>
+                    <div><strong>Party:</strong> <span id="reviewParty"></span></div>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="previousStep()">Back</button>
+                    <button class="btn-primary" onclick="castVote()">
+                        <span class="icon">✓</span>Submit Vote
+                    </button>
+                </div>
+            </div>
+
+            <!-- Success Page -->
+            <div class="form-section" id="stepSuccess">
+                <div style="text-align: center; padding: 20px 0;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">✅</div>
+                    <h2 style="color: #1a472a; margin-bottom: 8px;">Vote Successfully Cast!</h2>
+                    <p style="color: #666; margin-bottom: 20px;">Your vote has been recorded and secured.</p>
+
+                    <div class="receipt-box" id="receiptBox"></div>
+
+                    <div style="margin-top: 20px; padding: 16px; background: #e8f3eb; border-radius: 6px;">
+                        <p style="font-size: 14px; color: #0f2f1a; margin-bottom: 8px;">
+                            <strong>Receipt Hash (for verification):</strong>
+                        </p>
+                        <p style="font-size: 12px; color: #0f2f1a; word-break: break-all; font-family: monospace;" id="receiptHash"></p>
+                    </div>
+
+                    <p style="color: #999; font-size: 12px; margin-top: 16px;">
+                        Save this receipt to verify your vote was counted correctly.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>🇳🇬 Nigeria Secure E-Voting Platform | <a href="#privacy">Privacy</a> | <a href="#help">Help</a></p>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let voterData = {
+            nin: '',
+            vin: '',
+            fullName: '',
+            phone: '',
+            state: '',
+            pollingUnit: '',
+            sessionToken: '',
+            voterHash: '',
+            ballotId: '',
+            electionType: '',
+            party: '',
+        };
+
+        const API_BASE = 'http://localhost:8000/api/v1';
+        let currentStep = 1;
+
+        function updateProgress() {
+            const percentage = (currentStep / 5) * 100;
+            document.getElementById('progressBar').style.width = percentage + '%';
+        }
+
+        function updateStepIndicator() {
+            document.querySelectorAll('.step').forEach(el => {
+                const stepNum = parseInt(el.dataset.step);
+                el.classList.remove('active', 'completed');
+                if (stepNum === currentStep) {
+                    el.classList.add('active');
+                } else if (stepNum < currentStep) {
+                    el.classList.add('completed');
+                }
+            });
+        }
+
+        function showStep(step) {
+            document.querySelectorAll('.form-section').forEach(el => {
+                el.classList.remove('active');
+            });
+            document.getElementById('step' + step).classList.add('active');
+            currentStep = step;
+            updateProgress();
+            updateStepIndicator();
+            window.scrollTo(0, 0);
+        }
+
+        function showAlert(elementId, type, message) {
+            const alertBox = document.getElementById(elementId);
+            alertBox.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+        }
+
+        function previousStep() {
+            if (currentStep > 1) {
+                showStep(currentStep - 1);
+            }
+        }
+
+        function registerVoter() {
+            voterData.nin = document.getElementById('nin').value;
+            voterData.vin = document.getElementById('vin').value;
+            voterData.fullName = document.getElementById('fullName').value;
+            voterData.phone = document.getElementById('phone').value;
+            voterData.state = document.getElementById('state').value;
+            voterData.pollingUnit = document.getElementById('pollingUnit').value;
+
+            // Validation
+            if (!voterData.nin || voterData.nin.length !== 11) {
+                showAlert('alertBox', 'error', '❌ NIN must be 11 digits');
+                return;
+            }
+            if (!voterData.vin) {
+                showAlert('alertBox', 'error', '❌ VIN is required');
+                return;
+            }
+            if (!voterData.fullName) {
+                showAlert('alertBox', 'error', '❌ Full name is required');
+                return;
+            }
+            if (!voterData.phone) {
+                showAlert('alertBox', 'error', '❌ Phone number is required');
+                return;
+            }
+
+            // Move to next step
+            document.getElementById('displayNIN').textContent = voterData.nin;
+            document.getElementById('displayVIN').textContent = voterData.vin;
+            showStep(2);
+        }
+
+        function authenticateVoter() {
+            showAlert('authAlert', 'info', '⏳ Verifying credentials...');
+
+            const payload = {
+                nin: voterData.nin,
+                vin: voterData.vin,
+                polling_unit_code: voterData.pollingUnit,
+                state_code: voterData.state,
+            };
+
+            fetch(`${API_BASE}/auth/verify`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    voterData.sessionToken = data.session_token;
+                    voterData.voterHash = data.voter_hash;
+                    showAlert('authAlert', 'success', '✅ Verification successful! OTP sent to your phone.');
+                    setTimeout(() => showStep(3), 1500);
+                } else {
+                    showAlert('authAlert', 'error', '❌ ' + (data.message || 'Verification failed'));
+                }
+            })
+            .catch(err => {
+                showAlert('authAlert', 'error', '❌ Network error. Please check your connection.');
+                console.error(err);
+            });
+        }
+
+        function verifyOTP() {
+            const otpCode = document.getElementById('otpCode').value;
+
+            if (!otpCode || otpCode.length !== 6) {
+                showAlert('otpAlert', 'error', '❌ OTP must be 6 digits');
+                return;
+            }
+
+            showAlert('otpAlert', 'info', '⏳ Verifying OTP...');
+
+            const payload = {
+                voter_hash: voterData.voterHash,
+                otp_code: otpCode
+            };
+
+            fetch(`${API_BASE}/auth/verify-otp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showAlert('otpAlert', 'success', '✅ OTP verified! Proceed to ballot selection.');
+                    setTimeout(() => showStep(4), 1500);
+                } else {
+                    showAlert('otpAlert', 'error', '❌ ' + (data.message || 'OTP verification failed'));
+                }
+            })
+            .catch(err => {
+                showAlert('otpAlert', 'error', '❌ Network error. Try again.');
+                console.error(err);
+            });
+        }
+
+        function issueBallot() {
+            voterData.electionType = document.querySelector('input[name="electionType"]:checked')?.value;
+            voterData.party = document.querySelector('input[name="party"]:checked')?.value;
+
+            if (!voterData.electionType || !voterData.party) {
+                showAlert('ballotAlert', 'error', '❌ Please select an election and party');
+                return;
+            }
+
+            showAlert('ballotAlert', 'info', '⏳ Issuing ballot...');
+
+            const params = new URLSearchParams({
+                voter_hash: voterData.voterHash,
+                session_token: voterData.sessionToken,
+                election_type: voterData.electionType,
+                polling_unit_code: voterData.pollingUnit,
+                party_code: voterData.party
+            });
+
+            fetch(`${API_BASE}/ballot/issue?${params}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    voterData.ballotId = data.ballot_id;
+                    document.getElementById('reviewElection').textContent = voterData.electionType;
+                    document.getElementById('reviewParty').textContent = voterData.party;
+                    showAlert('ballotAlert', 'success', '✅ Ballot issued. Confirm your choice.');
+                    setTimeout(() => showStep(5), 1500);
+                } else {
+                    showAlert('ballotAlert', 'error', '❌ ' + (data.message || 'Failed to issue ballot'));
+                }
+            })
+            .catch(err => {
+                showAlert('ballotAlert', 'error', '❌ Network error. Try again.');
+                console.error(err);
+            });
+        }
+
+        function castVote() {
+            showAlert('voteAlert', 'info', '⏳ Submitting your vote...');
+
+            const payload = {
+                voter_hash: voterData.voterHash,
+                session_token: voterData.sessionToken,
+                ballot_id: voterData.ballotId,
+                election_type: voterData.electionType,
+                party_code: voterData.party,
+                polling_unit_code: voterData.pollingUnit
+            };
+
+            fetch(`${API_BASE}/ballot/cast`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const receipt = data.receipt || {};
+                    const receiptContent = `
+Ballot ID: ${receipt.ballot_id}
+Receipt Hash: ${receipt.receipt_hash}
+Timestamp: ${receipt.timestamp}
+Signature: ${receipt.signature}
+                    `;
+                    document.getElementById('receiptBox').textContent = receiptContent;
+                    document.getElementById('receiptHash').textContent = receipt.receipt_hash || 'N/A';
+                    document.querySelectorAll('.form-section').forEach(el => el.classList.remove('active'));
+                    document.getElementById('stepSuccess').classList.add('active');
+                } else {
+                    showAlert('voteAlert', 'error', '❌ ' + (data.message || 'Failed to submit vote'));
+                }
+            })
+            .catch(err => {
+                showAlert('voteAlert', 'error', '❌ Network error. Try again.');
+                console.error(err);
+            });
+        }
+
+        // Add radio option selection handling
+        document.addEventListener('change', (e) => {
+            if (e.target.type === 'radio') {
+                const parent = e.target.closest('.radio-option');
+                parent?.closest('.radio-group')?.querySelectorAll('.radio-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                parent?.classList.add('selected');
+            }
+        });
+    </script>
+</body>
+</html>
