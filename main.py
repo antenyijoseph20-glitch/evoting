@@ -824,30 +824,71 @@ async def export_audit_ledger():
 async def verify_voter(payload: VerifyRequest):
     clean_nin = payload.nin.strip()
     clean_vin = payload.vin.strip().upper()
-    voter_hash = hashlib.sha256(f"{clean_nin}{clean_vin}".encode()).hexdigest()
+
+    voter_hash = hashlib.sha256(
+        f"{clean_nin}{clean_vin}".encode()
+    ).hexdigest()
+
     session_token = secrets.token_hex(32)
-    
+
     with sqlite3.connect(DB_NAME, timeout=10.0) as conn:
         cursor = conn.cursor()
-        
-        cursor.execute("SELECT id FROM accredited_voters WHERE voter_hash = ?", (voter_hash,))
-        row = cursor.fetchone()
-        
-        if not row:
-            cursor.execute("""
-                INSERT OR IGNORE INTO accredited_voters (voter_hash, polling_unit_code, phone_number, signed_status, voted_status)
-                VALUES (?, ?, ?, 0, 0)
-            """, (voter_hash, payload.polling_unit_code, session_token, payload.phone_number))
-            conn.commit()
-        
-        cursor.execute("""
-            UPDATE accredited_voters
-            SET session_token = ?, polling_unit_code = ?, phone_number = ?
+
+        cursor.execute(
+            """
+            SELECT id
+            FROM accredited_voters
             WHERE voter_hash = ?
-        """, (session_token, payload.polling_unit_code, payload.phone_number, voter_hash))
+            """,
+            (voter_hash,),
+        )
+
+        row = cursor.fetchone()
+
+        if not row:
+            cursor.execute(
+                """
+                INSERT OR IGNORE INTO accredited_voters (
+                    voter_hash,
+                    polling_unit_code,
+                    session_token,
+                    phone_number,
+                    signed_status,
+                    voted_status
+                )
+                VALUES (?, ?, ?, ?, 0, 0)
+                """,
+                (
+                    voter_hash,
+                    payload.polling_unit_code,
+                    session_token,
+                    payload.phone_number,
+                ),
+            )
+        else:
+            cursor.execute(
+                """
+                UPDATE accredited_voters
+                SET session_token = ?,
+                    polling_unit_code = ?,
+                    phone_number = ?
+                WHERE voter_hash = ?
+                """,
+                (
+                    session_token,
+                    payload.polling_unit_code,
+                    payload.phone_number,
+                    voter_hash,
+                ),
+            )
+
         conn.commit()
-        
-    return {"status": "success", "session_token": session_token}
+
+    return {
+        "status": "success",
+        "session_token": session_token,
+    }
+
 
 @app.post("/api/v1/authority/blind-sign")
 async def blind_sign_ballot(payload: BlindSignRequest):
