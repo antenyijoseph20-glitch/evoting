@@ -129,7 +129,7 @@ class VotingEngine:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS national_results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                election_type TEXT UNIQUE NOT NULL,
+                election_type TEXT NOT NULL,  -- was UNIQUE, which allowed only ONE party per election
                 party_code TEXT NOT NULL,
                 total_votes INTEGER DEFAULT 0,
                 percentage REAL DEFAULT 0.0,
