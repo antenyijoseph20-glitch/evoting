@@ -92,6 +92,14 @@ class SecurityHardening:
         conn.close()
 
     @staticmethod
+    def _parse_utc(value) -> datetime:
+        """Parse a stored timestamp, treating values without a timezone as UTC."""
+        dt = datetime.fromisoformat(str(value))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+
+    @staticmethod
     def sanitize_string(value: str) -> str:
         """Basic sanitization for dangerous input."""
         if value is None:
@@ -166,8 +174,9 @@ class SecurityHardening:
                 return True, "Allowed"
 
             request_count, window_start, last_request = row
-            window_start_dt = datetime.fromisoformat(str(window_start))
-            last_request_dt = datetime.fromisoformat(str(last_request))
+            # SQLite's CURRENT_TIMESTAMP is UTC but has no timezone marker, so
+            # attach UTC before comparing with the timezone-aware `now`.
+            window_start_dt = self._parse_utc(window_start)
 
             if (now - window_start_dt).total_seconds() > window_seconds:
                 cursor.execute("""
