@@ -6,6 +6,7 @@ This project is built as a technical demonstration and governance-focused engine
 
 ---
 
+
 ## Overview
 
 This repository focuses on the design of a trustworthy digital voting architecture with emphasis on:
