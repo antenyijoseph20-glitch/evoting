@@ -28,3 +28,10 @@ htmlcov/
 
 # OS files
 .DS_Store
+
+# Logs
+*.log
+
+# SQLite side files (write-ahead log / shared memory)
+*.db-wal
+*.db-shm
