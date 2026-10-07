@@ -428,30 +428,15 @@ class INECVoterAuthenticationManager:
                 
                 -- Immutability Check
                 hash_of_previous TEXT,
-                current_hash TEXT,
-                
-                INDEX idx_voter_hash (voter_hash),
-                INDEX idx_action_timestamp (action_timestamp)
+                current_hash TEXT
             )
         """)
-        
-        # Biometric Verification Log
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS biometric_verification_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                voter_hash TEXT NOT NULL,
-                verification_type TEXT NOT NULL,
-                confidence_score REAL,
-                verification_result TEXT,
-                verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                device_used TEXT,
-                
-                FOREIGN KEY(voter_hash) REFERENCES inec_voters(voter_hash),
-                INDEX idx_voter_verification (voter_hash)
-            )
-        """)
-        
-        # Create indexes for performance
+
+        # NOTE: biometric_verification_log is owned by biometric_otp_module.py.
+        # It was previously also defined here with different columns, and
+        # whichever module ran first "won", breaking the other's inserts.
+
+        # Create indexes for performance (SQLite does not allow INDEX inside CREATE TABLE)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_nin ON inec_voters(nin)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vin ON inec_voters(vin)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_voter_hash ON inec_voters(voter_hash)")
@@ -459,6 +444,7 @@ class INECVoterAuthenticationManager:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_token ON voter_sessions(session_token_hash)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_otp_voter ON otp_log(voter_hash)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_voter ON election_audit_log(voter_hash)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON election_audit_log(action_timestamp)")
         
         conn.commit()
         conn.close()
@@ -841,6 +827,11 @@ def initialize_inec_auth_system(db_path: str = "evoting.db") -> INECVoterAuthent
     
     auth_manager = INECVoterAuthenticationManager(db_path)
     return auth_manager
+
+
+# Other modules (api_main, voting_engine, security_flow, election_workflow)
+# import this shorter name. It was missing, which crashed them all on startup.
+initialize_auth_system = initialize_inec_auth_system
 
 
 if __name__ == "__main__":
