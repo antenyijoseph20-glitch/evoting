@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nigeria E2E-V Secure Voting Bulletin Board</title>
+</head>
+<body style="font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; background: #fdfdfd;">
+
+    <h1>Nigeria E2E-V Secure Voting System</h1>
+    <h2>Public Bulletin Board Ledger</h2>
+
+    <!-- Integrity Status Badge Placeholder -->
+    <div id="integrity-status" style="margin-bottom: 20px;">
+        Checking ledger integrity...
+    </div>
+
+    <!-- Blocks Container Placeholder -->
+    <div id="blocks-container">
+        <!-- JavaScript will populate block cards here -->
+    </div>
+
+    <!-- Link your frontend app script -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+
+<!-- Voter Interaction Portal -->
+<div style="background: #ffffff; border: 1px solid #ced4da; padding: 20px; border-radius: 8px; margin-bottom: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <h3 style="margin-top: 0; color: #111; font-size: 18px;">🗳️ Voter Portal & Ballot Casting</h3>
+    
+    <!-- Step 1: Accreditation Form -->
+    <div id="step-1-container">
+        <p style="font-size: 13px; color: #666; margin-bottom: 12px;">Step 1: Enter your credentials for NIN/VIN accreditation.</p>
+        <form id="auth-form" style="display: grid; gap: 10px; max-width: 400px;">
+            <div>
+                <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 4px;">NIN (11 Digits)</label>
+                <input type="text" id="nin-input" required maxlength="11" placeholder="e.g. 12345678901" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" />
+            </div>
+            <div>
+                <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 4px;">VIN (Voter ID Number)</label>
+                <input type="text" id="vin-input" required placeholder="e.g. 90FB123456789012345" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" />
+            </div>
+            <div>
+                <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 4px;">Polling Unit Code</label>
+                <input type="text" id="pu-input" required value="PU-05-12-04-001" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" />
+            </div>
+            <button type="submit" style="background: #0056b3; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 6px;">
+                Verify & Get Ballot Token
+            </button>
+        </form>
+    </div>
+
+    <!-- Step 2: Ballot Submission Form (Hidden initially) -->
+    <div id="step-2-container" style="display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px;">
+        <p style="font-size: 13px; color: #28a745; font-weight: bold; margin-bottom: 10px;">✅ Accreditation Successful! Session token acquired.</p>
+        <form id="ballot-form" style="display: grid; gap: 10px; max-width: 400px;">
+            <div>
+                <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 4px;">Select Candidate</label>
+                <select id="candidate-select" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <option value="Candidate A">Candidate A (Progressive Party)</option>
+                    <option value="Candidate B">Candidate B (Democratic Alliance)</option>
+                    <option value="Candidate C">Candidate C (People's Coalition)</option>
+                </select>
+            </div>
+            <button type="submit" style="background: #28a745; color: white; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 6px;">
+                Cast Secure Ballot & Anchor to Ledger
+            </button>
+        </form>
+    </div>
+
+    <!-- Status feedback banner -->
+    <div id="voter-feedback" style="margin-top: 12px; font-size: 13px; color: #333;"></div>
+</div>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nigeria E2E-V Secure Voting Bulletin Board</title>
+</head>
+<body style="font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; background: #fdfdfd;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eaeaea; padding-bottom: 10px;">
+        <div>
+            <h1 style="margin: 0; font-size: 22px; color: #111;">Nigeria E2E-V Voting Portal</h1>
+            <p style="margin: 4px 0 0 0; font-size: 13px; color: #666;">Cryptographically verifiable decentralized voting audit node</p>
+        </div>
+        <!-- Direct Download Button for Auditors -->
+        <div>
+            <a href="http://127.0.0.1:8000/api/v1/bulletin-board/export" target="_blank" style="background: #28a745; color: white; padding: 10px 16px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                📥 Export Ledger JSON
+            </a>
+        </div>
+    </div>
+
+    <h2>Public Bulletin Board Ledger</h2>
+
+    <!-- Integrity Status Badge Placeholder -->
+    <div id="integrity-status" style="margin-bottom: 20px;">
+        Checking ledger integrity...
+    </div>
+
+    <!-- Blocks Container Placeholder -->
+    <div id="blocks-container">
+        <!-- JavaScript will populate block cards here -->
+    </div>
+
+    <!-- Link your frontend app script -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+
+<!-- Live Tally Summary Section -->
+<div id="tally-container" style="background: #f8f9fa; border: 1px solid #dee2e6; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
+    <h3 style="margin-top: 0; color: #333; font-size: 16px;">📊 Live Election Tally</h3>
+    <div id="tally-results-list">Loading live results...</div>
+</div>

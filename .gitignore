@@ -1,0 +1,45 @@
+# Python virtual environments
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# IDE / editor
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+
+# Logs
+*.log
+
+# SQLite side files (write-ahead log / shared memory)
+*.db-wal
+*.db-shm
+# Private keys (officer and authority signing keys)
+*.key
+*.pem
+
+# Local exports and uploads
+export*.json
+uploads/
+*.jpg

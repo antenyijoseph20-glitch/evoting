@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nigeria E2E-V Secure Voting Portal</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f4f8; color: #333; margin: 0; padding: 40px; }
+        .container { max-width: 650px; background: #fff; padding: 40px; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); margin: auto; }
+        h1 { color: #004d40; text-align: center; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #555; margin-bottom: 30px; font-size: 14px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        input:focus, select:focus { outline: none; border-color: #004d40; box-shadow: 0 0 0 3px rgba(0,77,64,0.1); }
+        button { background: #004d40; color: white; border: none; padding: 14px; width: 100%; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #00695c; }
+        #result { margin-top: 25px; padding: 20px; background: #e0f2f1; border-radius: 6px; display: none; word-break: break-all; border-left: 5px solid #004d40; }
+        .step-section { display: none; }
+        .step-section.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Nigeria E2E-V Voting Portal</h1>
+        <div class="subtitle">Cryptographically Verifiable End-to-End Electronic Voting System</div>
+        
+        <!-- STEP 1: ACCREDITATION -->
+        <div id="step-auth" class="step-section active">
+            <h3>Step 1: Voter Accreditation</h3>
+            <div class="form-group">
+                <label for="nin">National Identification Number (NIN - 11 digits):</label>
+                <input type="text" id="nin" maxlength="11" placeholder="Enter 11-digit NIN">
+            </div>
+            <div class="form-group">
+                <label for="vin">Voter Identification Number (VIN):</label>
+                <input type="text" id="vin" placeholder="Enter Voter ID / VIN">
+            </div>
+            <button onclick="verifyVoter()">Accredit & Request Session</button>
+        </div>
+
+        <!-- STEP 2: CAST BALLOT -->
+        <div id="step-vote" class="step-section">
+            <h3>Step 2: Cast Your Secure Ballot</h3>
+            <p style="font-size: 13px; color: #666;">Session Token Active. Your ballot will be cast anonymously and anchored to the tamper-evident ledger.</p>
+            <div class="form-group">
+                <label for="candidate">Select Preferred Candidate:</label>
+                <select id="candidate">
+                    <option value="Candidate A">Candidate A - Progressive Alliance</option>
+                    <option value="Candidate B">Candidate B - Democratic Congress</option>
+                    <option value="Candidate C">Candidate C - People's Movement</option>
+                </select>
+            </div>
+            <button onclick="castBallot()">Submit Secure Vote</button>
+        </div>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        let sessionToken = null;
+
+        async function verifyVoter() {
+            const nin = document.getElementById('nin').value.trim();
+            const vin = document.getElementById('vin').value.trim();
+            const resultDiv = document.getElementById('result');
+
+            if (nin.length !== 11) {
+                alert("NIN must be exactly 11 digits.");
+                return;
+            }
+            if (!vin) {
+                alert("Please enter your VIN.");
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/v1/auth/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nin: nin, vin: vin, polling_unit_code: "PU-001" })
+                });
+
+                const data = await response.json();
+                resultDiv.style.display = 'block';
+
+                if (response.ok) {
+                    sessionToken = data.session_token;
+                    resultDiv.style.background = '#e0f2f1';
+                    resultDiv.style.borderLeftColor = '#004d40';
+                    resultDiv.innerHTML = `<strong>Accreditation Successful!</strong><br>Session Token established securely.<br><em>Proceeding to voting booth...</em>`;
+                    
+                    setTimeout(() => {
+                        document.getElementById('step-auth').classList.remove('active');
+                        document.getElementById('step-vote').classList.add('active');
+                        resultDiv.style.display = 'none';
+                    }, 2000);
+                } else {
+                    resultDiv.style.background = '#ffebee';
+                    resultDiv.style.borderLeftColor = '#c62828';
+                    resultDiv.innerHTML = `<strong>Accreditation Error:</strong> ${data.detail || 'Verification failed.'}`;
+                }
+            } catch (err) {
+                resultDiv.style.display = 'block';
+                resultDiv.style.background = '#ffebee';
+                resultDiv.innerHTML = `<strong>Network Error:</strong> Could not connect to verification core.`;
+            }
+        }
+
+        async function castBallot() {
+            const candidateId = document.getElementById('candidate').value;
+            const resultDiv = document.getElementById('result');
+
+            if (!sessionToken) {
+                alert("No active session token found. Please re-accredit.");
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/v1/ballot/cast', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_token: sessionToken,
+                        candidate_id: candidateId,
+                        polling_unit_code: "PU-001"
+                    })
+                });
+
+                const data = await response.json();
+                resultDiv.style.display = 'block';
+
+                if (response.ok) {
+                    resultDiv.style.background = '#e0f2f1';
+                    resultDiv.style.borderLeftColor = '#004d40';
+                    resultDiv.innerHTML = `<strong>Vote Successfully Cast & Anchored!</strong><br>
+                        <strong>Block Index:</strong> ${data.receipt.block_index}<br>
+                        <strong>Ledger Hash:</strong> <code>${data.receipt.block_hash}</code><br>
+                        <hr style="margin: 10px 0; border:0; border-top:1px solid #b2dfdb;">
+                        <em>Your vote has been permanently recorded on the immutable hash-chain ledger.</em>`;
+                } else {
+                    resultDiv.style.background = '#ffebee';
+                    resultDiv.style.borderLeftColor = '#c62828';
+                    resultDiv.innerHTML = `<strong>Submission Error:</strong> ${data.detail || 'Ballot casting failed.'}`;
+                }
+            } catch (err) {
+                resultDiv.style.display = 'block';
+                resultDiv.style.background = '#ffebee';
+                resultDiv.innerHTML = `<strong>Network Error:</strong> Could not submit ballot to core.`;
+            }
+        }
+    </script>
+    <!-- Links your custom script if needed -->
+    <script src="/static/app.js" onerror="console.log('Optional app.js not loaded, inline script active.')"></script>
+</body>
+</html>
