@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 import config
 import db
+import audit_log as alog
 import results_core as rc
 import security as sec
 
@@ -43,8 +44,8 @@ class ReviewIn(BaseModel):
 
 
 def audit(conn, actor: str, action: str, detail: str = "") -> None:
-    conn.execute("INSERT INTO admin_audit (ts, actor, action, detail) VALUES (?,?,?,?)",
-                 (sec.iso(sec.now_utc()), actor, action, detail))
+    """Append a hash-chained administrative audit entry (call inside db.tx)."""
+    alog.append(conn, actor, action, detail)
 
 
 def require_role(*roles: str) -> Callable:
@@ -239,9 +240,13 @@ def stats(who=Depends(require_role("ADMIN", "REGISTRAR", "AUDITOR"))):
         sheet_cp = c.execute("SELECT * FROM checkpoints ORDER BY id DESC LIMIT 1").fetchone()
         sheet_cp_check = rc.verify_checkpoint(c)
         check = rc.verify_ledger_chain(c, vote_rows)
+        audit_cp = alog.latest_checkpoint(c)
+        audit_check = alog.verify(c)
     return {"voters": voters, "votes_cast": len(vote_rows),
             "ledger_chain": check,
             "ledger_checkpoint": dict(ledger_cp) if ledger_cp else None,
+            "audit_chain": audit_check,
+            "audit_checkpoint": dict(audit_cp) if audit_cp else None,
             "elections": statuses,
             "open_elections": [t for t, s in statuses.items() if s == "OPEN"],
             "result_sheets": sheets, "pending_review": pending_review,
@@ -300,6 +305,31 @@ def ledger_checkpoint(who=Depends(require_role("ADMIN"))):
         cp = rc.create_ledger_checkpoint(c)
         audit(c, who["username"], "LEDGER_CHECKPOINT", f"height={cp['height']}")
     return cp
+
+
+@router.post("/audit/log-checkpoint")
+def audit_log_checkpoint(who=Depends(require_role("ADMIN"))):
+    """Sign the admin audit-log head. The entry recording this action is covered too."""
+    with db.tx() as c:
+        audit(c, who["username"], "AUDIT_LOG_CHECKPOINT")
+        return alog.create_checkpoint(c)
+
+
+@router.get("/audit/verify-log")
+def verify_audit_log(who=Depends(require_role("ADMIN", "AUDITOR"))):
+    with db.read() as c:
+        return alog.verify(c)
+
+
+@router.get("/audit/log-export")
+def export_audit_log(who=Depends(require_role("ADMIN", "AUDITOR"))):
+    """Everything an independent reviewer needs to recompute the audit hash chain."""
+    with db.read() as c:
+        entries = [dict(r) for r in c.execute("SELECT * FROM admin_audit ORDER BY id")]
+        cp = alog.latest_checkpoint(c)
+        check = alog.verify(c)
+    return {"entries": entries, "checkpoint": dict(cp) if cp else None,
+            "authority_public_key": rc.authority_public_hex(), "verification": check}
 
 
 @router.get("/results/export")

@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timezone
 
 import db
+import audit_log as alog
 import ledger
 import signing as sg
 import verify_offline
@@ -35,6 +36,90 @@ def submit(client, key, officer_id, payload):
     return client.post("/results/submit", json={
         "payload": payload, "officer_id": officer_id,
         "signature": sg.sign(key, sg.sheet_message(payload))})
+
+
+def test_audit_log_chain_is_signed(client, staff):
+    headers = bearer(staff["tokens"]["ADMIN"])
+    with db.tx() as c:
+        for i in range(3):
+            alog.append(c, "tester", "TEST_ACTION", f"n={i}")
+
+    check = client.get("/admin/audit/verify-log", headers=headers).json()
+    assert check["valid"] is True
+    assert check["entries_checked"] == 3
+    assert check["checkpoint"] is None
+    assert check["checkpoint_signature_valid"] is None
+
+    cp = client.post("/admin/audit/log-checkpoint", headers=headers).json()
+    assert cp["height"] == 4  # the checkpoint action itself is covered
+    check = client.get("/admin/audit/verify-log", headers=headers).json()
+    assert check["valid"] is True
+    assert check["entries_checked"] == 4
+    assert check["checkpoint"]["height"] == 4
+    assert check["checkpoint_signature_valid"] is True
+    assert check["covered"] is True
+
+
+def test_audit_log_detects_edits(client, staff):
+    headers = bearer(staff["tokens"]["ADMIN"])
+    with db.tx() as c:
+        for i in range(3):
+            alog.append(c, "tester", "TEST_ACTION", f"n={i}")
+    assert client.post("/admin/audit/log-checkpoint", headers=headers).status_code == 200
+
+    # Rewriting a covered entry breaks the link at that entry.
+    with db.tx() as c:
+        first = c.execute("SELECT id FROM admin_audit ORDER BY id LIMIT 1").fetchone()["id"]
+        c.execute("UPDATE admin_audit SET detail='rewritten' WHERE id=?", (first,))
+    check = client.get("/admin/audit/verify-log", headers=headers).json()
+    assert check["valid"] is False
+    assert check["first_bad_entry"] == first
+    assert check["reason"] == "audit log hash chain broken"
+
+
+def test_audit_log_forged_checkpoint_signature_is_rejected(client, staff):
+    headers = bearer(staff["tokens"]["ADMIN"])
+    with db.tx() as c:
+        alog.append(c, "tester", "TEST_ACTION", "n=0")
+    assert client.post("/admin/audit/log-checkpoint", headers=headers).status_code == 200
+
+    # A well-formed but forged checkpoint signature is not trusted.
+    with db.tx() as c:
+        c.execute("UPDATE audit_checkpoints SET signature=?", ("00" * 64,))
+    check = client.get("/admin/audit/verify-log", headers=headers).json()
+    assert check["valid"] is False
+    assert check["checkpoint_signature_valid"] is False
+    assert check["reason"] == "audit-log checkpoint signature invalid"
+
+
+def test_audit_log_detects_tail_truncation(client, staff):
+    headers = bearer(staff["tokens"]["ADMIN"])
+    with db.tx() as c:
+        for i in range(3):
+            alog.append(c, "tester", "TEST_ACTION", f"n={i}")
+    cp = client.post("/admin/audit/log-checkpoint", headers=headers).json()
+
+    # Removing the newest entry leaves a self-consistent chain; only the signed
+    # height reveals that the log was shortened.
+    with db.tx() as c:
+        c.execute("DELETE FROM admin_audit WHERE id=(SELECT MAX(id) FROM admin_audit)")
+    check = client.get("/admin/audit/verify-log", headers=headers).json()
+    assert check["valid"] is False
+    assert check["entries_checked"] == cp["height"] - 1
+    assert check["reason"] == "audit log is shorter than the signed checkpoint"
+
+
+def test_audit_log_verification_is_role_restricted(client, staff):
+    registrar = bearer(staff["tokens"]["REGISTRAR"])
+    auditor = bearer(staff["tokens"]["AUDITOR"])
+    assert client.get("/admin/audit/verify-log", headers=registrar).status_code == 403
+    assert client.get("/admin/audit/verify-log", headers=auditor).status_code == 200
+    assert client.get("/admin/audit/log-export", headers=registrar).status_code == 403
+    export = client.get("/admin/audit/log-export", headers=auditor).json()
+    assert export["verification"]["valid"] is True
+    assert len(export["authority_public_key"]) == 64
+    assert client.post("/admin/audit/log-checkpoint", headers=auditor).status_code == 403
+    assert client.post("/admin/audit/log-checkpoint", headers=registrar).status_code == 403
 
 
 def test_ledger_checkpoint_signature_is_verified(client, staff):

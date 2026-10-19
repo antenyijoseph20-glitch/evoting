@@ -153,8 +153,8 @@ What a national system needs that this repository does not have:
 - separation of duties (today one ADMIN can open elections, register officers,
   review results and sign checkpoints);
 - MFA for staff, hardware-backed admin credentials and short-lived sessions;
-- a tamper-evident administrative audit log (it is append-only in normal use but
-  not hash-chained or externally witnessed);
+- a tamper-evident administrative audit log (now hash-chained with signed
+  checkpoints, but not yet mirrored to independent witnesses);
 - transparency-log witnesses that mirror signed checkpoints to independent
   parties and publish them widely;
 - reproducible builds, dependency pinning, SBOM and supply-chain controls;
@@ -195,7 +195,8 @@ election where a wrong result would be irreversible.
 - Move to PostgreSQL, Redis-backed rate limits/sessions, and multiple workers.
 - Add MFA and separation of duties for staff.
 - Hash-chain the admin audit log and publish checkpoints to independent
-  witnesses.
+  witnesses. (The chain and signed checkpoints are implemented; external
+  witnessing, timely independent verification and retention guarantees are not.)
 - Load-test the intended pilot size; run a public test election.
 - Publish source hashes and a reproducible-build recipe.
 
@@ -238,8 +239,8 @@ If the goal is to move toward a defensible pilot, do these in order:
 1. Replace the single-node store and in-process limits (PostgreSQL, Redis,
    multiple workers, migrations, backups/restore drills).
 2. Add staff MFA, separation of duties, and hardware-backed session keys.
-3. Hash-chain `admin_audit` and publish signed checkpoints to independent
-   witnesses.
+3. Publish signed audit-log (and vote-ledger/result-sheet) checkpoints to
+   independent witnesses; chaining and signed checkpoints now exist.
 4. Integrate a real biometric matcher with liveness, plus device attestation.
 5. Move officer/authority signing to an HSM or threshold scheme; document and
    rehearse the key ceremony.

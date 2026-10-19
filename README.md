@@ -44,6 +44,9 @@ offline verifier checks the whole archive.
   signature, so deleting or altering a covered sheet is detected.
 - Flagged sheets (e.g. over-votes) are excluded from the tally until an ADMIN
   makes a one-shot, audited decision to accept or void them.
+- The staff audit log is hash-chained and can be committed with a signed
+  checkpoint. Verification re-checks every link and the Ed25519 signature, so a
+  rewritten or shortened covered log is detected rather than trusted.
 - A public tally re-checks each stored sheet's metadata, payload hash and officer
   signature; a row that no longer agrees with what was signed is excluded and
   reported, never counted.
@@ -121,7 +124,7 @@ that faces real voters needs the values below.
 | Value | Needed for | Create it with | Keep it |
 |---|---|---|---|
 | `EVOTING_HMAC_SECRET` | Hashing NIN/VIN and binding OTPs (required in production) | `python3 manage.py hmac-keygen` | Server secret store; never in git |
-| `EVOTING_AUTHORITY_KEY` | Signing vote-ledger and result-sheet checkpoints | `python3 manage.py authority-keygen --out authority_ed25519.key` | Offline/HSM; public key published to observers |
+| `EVOTING_AUTHORITY_KEY` | Signing vote-ledger, result-sheet and audit-log checkpoints | `python3 manage.py authority-keygen --out authority_ed25519.key` | Offline/HSM; public key published to observers |
 | Officer Ed25519 key | Signing each polling unit's result sheet | `python3 tools/results_cli.py keygen --officer-id PO-001 --out PO-001.key` | On the officer's own device only |
 | `EVOTING_SMS_API_KEY` | Delivering OTPs through the SMS webhook | Your SMS provider | Server secret store |
 | `EVOTING_FACE_MATCHER` | Production biometric matching with liveness | Your matcher as `package.module:callable` | Deployed with the service; not a secret |
@@ -183,8 +186,8 @@ archive whose sheets are newer than its signed checkpoint.
 4. Polling units submit signed result sheets; party agents countersign.
 5. Close the election. Tallies and detailed public data are released.
 6. Review any flagged sheets (Admin → Results). Each decision is audited.
-7. Sign a result-sheet checkpoint (Admin → Results) and a ledger checkpoint
-   (Admin → Overview or Audit).
+7. Sign a result-sheet checkpoint (Admin → Results), a ledger checkpoint
+   (Admin → Overview or Audit), and an audit-log checkpoint (Admin → Audit).
 8. Download the archive (`/results/export`, unlocked once nothing is OPEN) and
    verify it independently:
 
@@ -219,6 +222,8 @@ archive, which an attacker who rewrote the archive could also replace.
   tokens stored only as SHA-256 hashes.
 - Result signatures are Ed25519 with domain separation, over canonical JSON, so
   signatures cannot be replayed across purposes.
+- Administrative audit entries are hash-chained; signed checkpoints fix a height
+  and head, and every verification re-checks the chain and Ed25519 signature.
 - Result detail and exports are locked while any election is OPEN; only counts
   of submitted/flagged sheets are public.
 - The production process refuses to start unless SMS, a biometric matcher, the
@@ -266,6 +271,9 @@ archive, which an attacker who rewrote the archive could also replace.
 | POST | `/admin/results/{type}/{pu}/review` | ADMIN | Accept or void a flagged sheet |
 | GET | `/admin/audit`, `/admin/audit/export` | ADMIN, AUDITOR | Audit trail and ledger |
 | POST | `/admin/audit/checkpoint` | ADMIN | Sign the ledger head |
+| POST | `/admin/audit/log-checkpoint` | ADMIN | Sign the admin audit-log head |
+| GET | `/admin/audit/verify-log` | ADMIN, AUDITOR | Verify the audit-log chain and checkpoint |
+| GET | `/admin/audit/log-export` | ADMIN, AUDITOR | Audit log, checkpoint and authority key for review |
 | GET | `/admin/audit/verify-chain` | ADMIN, AUDITOR | Verify chain against checkpoint |
 | GET | `/admin/results/export` | ADMIN, AUDITOR | Internal audit archive |
 
@@ -280,7 +288,8 @@ archive, which an attacker who rewrote the archive could also replace.
 The suite covers the full voter flow, OTP/face/rate limits, duplicate voting,
 admin RBAC, signed result submission and review, tally release policy, Merkle
 proofs, ledger checkpoints and truncation detection, forged checkpoint
-signatures, result-tree truncation, tampered stored sheets, schema migration, and
+signatures, result-tree truncation, tampered stored sheets, admin audit-log
+chaining, edit/truncation/forged-signature detection, schema migration, and
 `verify_offline.py` against a real export (including tampered and malformed
 archives and a pinned authority key).
 
@@ -329,6 +338,7 @@ compose file binds to `127.0.0.1` by default for a reason.
 ```text
 main.py               voter API, public pages, security headers, health
 admin.py              role-based admin API
+audit_log.py          hash-chained admin audit log and signed head checkpoints
 results.py            polling-unit result API
 results_core.py       signing, chaining, Merkle checkpoints, tally, review
 ledger.py             vote hash chain and signed head checkpoints

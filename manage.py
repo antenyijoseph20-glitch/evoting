@@ -24,6 +24,7 @@ import sys
 
 import config
 import db
+import audit_log as alog
 import results_core as rc
 import security as sec
 import signing as sg
@@ -203,6 +204,8 @@ def status() -> None:
         sheet_chain = rc.verify_sheet_chain(c)
         sheet_cp_check = rc.verify_checkpoint(c)
         ledger_chain = rc.verify_ledger_chain(c, rows)
+        audit_cp = alog.latest_checkpoint(c)
+        audit_check = alog.verify(c)
     print(json.dumps({
         "database": config.DB_PATH,
         "environment": config.ENV,
@@ -210,6 +213,8 @@ def status() -> None:
         "votes_cast": len(rows),
         "ledger_chain": ledger_chain,
         "ledger_checkpoint": dict(cp) if cp else None,
+        "audit_log_chain": audit_check,
+        "audit_log_checkpoint": dict(audit_cp) if audit_cp else None,
         "result_sheets": sheets,
         "pending_flag_reviews": flagged,
         "result_sheet_chain": sheet_chain,

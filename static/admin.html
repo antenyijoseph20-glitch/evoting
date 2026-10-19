@@ -80,6 +80,7 @@
         <p><strong>Vote ledger:</strong> <span id="ledger-badge" class="badge">—</span></p>
         <p><strong>Result-sheet chain:</strong> <span id="sheet-badge" class="badge">—</span></p>
         <p><strong>Result-sheet checkpoint:</strong> <span id="result-cp-badge" class="badge">—</span></p>
+        <p><strong>Admin audit log:</strong> <span id="audit-log-badge" class="badge">—</span></p>
         <div id="ov-checkpoints" class="receipt"><span class="muted">Loading checkpoints…</span></div>
       </div>
       <div class="btn-row">
@@ -192,14 +193,18 @@
     <!-- Audit -->
     <section class="card hidden" data-panel="audit" aria-labelledby="h-audit">
       <h2 id="h-audit">Audit trail</h2>
-      <p class="lede">Administrative actions and officer submissions, newest first.</p>
+      <p class="lede">Administrative actions and officer submissions, newest first.
+        Entries are hash-chained; sign a checkpoint and verify the chain here.</p>
       <div class="btn-row">
         <button id="refresh-audit" class="btn secondary" type="button">Refresh</button>
         <button id="verify-chain-btn" class="btn secondary" type="button">Verify vote chain</button>
+        <button id="verify-audit-log-btn" class="btn secondary" type="button">Verify audit log</button>
         <button id="export-ledger-btn" class="btn secondary" type="button">Download ledger</button>
         <button id="sign-ledger-cp-2" class="btn" type="button" data-admin-only>Sign ledger checkpoint</button>
+        <button id="sign-audit-cp" class="btn" type="button" data-admin-only>Sign audit-log checkpoint</button>
       </div>
       <div id="chain-result" class="alert" role="alert"></div>
+      <div id="audit-log-result" class="alert" role="alert"></div>
       <div class="section">
         <div class="table-wrap">
           <table>

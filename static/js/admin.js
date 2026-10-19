@@ -219,6 +219,31 @@
     }
   }
 
+  function auditLogBadge(id, check) {
+    const badge = $(id);
+    if (!check) {
+      badge.className = "badge";
+      badge.textContent = "Unknown";
+    } else if (!check.valid) {
+      const at = check.first_bad_entry !== undefined ? " at entry #" + check.first_bad_entry : "";
+      badge.className = "badge bad";
+      badge.textContent = "FAILED — " + (check.reason || "audit log mismatch") + at;
+    } else if (!check.checkpoint) {
+      badge.className = "badge warn";
+      badge.textContent = "Chain valid — " + fmt(check.entries_checked) +
+        " entries; no signed checkpoint yet, so truncation is not detectable";
+    } else {
+      const newer = Math.max(0, check.entries_checked - check.checkpoint.height);
+      badge.className = "badge " + (newer ? "warn" : "ok");
+      badge.textContent = newer
+        ? "Valid for checkpoint height " + fmt(check.checkpoint.height) + "; " + fmt(newer) +
+          " newer entr" + (newer === 1 ? "y is" : "ies are") +
+          " not yet covered — sign a fresh checkpoint"
+        : "Valid — " + fmt(check.entries_checked) + " entries; signature verified" +
+          " at checkpoint height " + fmt(check.checkpoint.height);
+    }
+  }
+
   function resultCheckpointBadge(id, check) {
     const badge = $(id);
     if (!check) {
@@ -239,18 +264,24 @@
     }
   }
 
-  function checkpointBlock(title, cp, ledgerStyle) {
+  function checkpointBlock(title, cp, kind) {
     const wrap = el("div", "section");
     wrap.append(el("h3", "", title));
     if (!cp) {
       wrap.append(el("p", "muted", "No signed checkpoint yet."));
       return wrap;
     }
-    const rows = ledgerStyle
-      ? [["Height", fmt(cp.height) + " ballots"], ["Head hash", cp.head_hash],
-         ["Signature", cp.signature], ["Signed at", cp.created_at]]
-      : [["Tree size", fmt(cp.tree_size) + " result sheets"], ["Merkle root", cp.root],
-         ["Signature", cp.signature], ["Signed at", cp.created_at]];
+    let rows;
+    if (kind === "ledger") {
+      rows = [["Height", fmt(cp.height) + " ballots"], ["Head hash", cp.head_hash],
+              ["Signature", cp.signature], ["Signed at", cp.created_at]];
+    } else if (kind === "audit") {
+      rows = [["Height", fmt(cp.height) + " audit entries"], ["Head hash", cp.head_hash],
+              ["Signature", cp.signature], ["Signed at", cp.created_at]];
+    } else {
+      rows = [["Tree size", fmt(cp.tree_size) + " result sheets"], ["Merkle root", cp.root],
+              ["Signature", cp.signature], ["Signed at", cp.created_at]];
+    }
     const dl = document.createElement("dl");
     rows.forEach(([key, value]) => {
       dl.append(el("dt", "", key));
@@ -272,10 +303,12 @@
       chainBadge("ledger-badge", s.ledger_chain);
       chainBadge("sheet-badge", s.sheet_chain);
       resultCheckpointBadge("result-cp-badge", s.result_checkpoint_check);
+      auditLogBadge("audit-log-badge", s.audit_chain);
       const box = $("ov-checkpoints");
       box.replaceChildren(
-        checkpointBlock("Vote ledger checkpoint", s.ledger_checkpoint, true),
-        checkpointBlock("Result-sheet checkpoint", s.result_checkpoint, false));
+        checkpointBlock("Vote ledger checkpoint", s.ledger_checkpoint, "ledger"),
+        checkpointBlock("Result-sheet checkpoint", s.result_checkpoint, "sheet"),
+        checkpointBlock("Admin audit-log checkpoint", s.audit_checkpoint, "audit"));
     } catch (error) {
       showError(error);
     }
@@ -286,6 +319,17 @@
       const cp = await api("/admin/audit/checkpoint", { method: "POST" });
       say("admin-alert", "ok", "Ledger checkpoint signed at height " + fmt(cp.height) + ".");
       if (!$("app").classList.contains("hidden")) await loadOverview();
+    } catch (error) {
+      showError(error);
+    }
+  }
+
+  async function signAuditCheckpoint() {
+    try {
+      const cp = await api("/admin/audit/log-checkpoint", { method: "POST" });
+      say("admin-alert", "ok", "Audit-log checkpoint signed at height " + fmt(cp.height) + ".");
+      await loadOverview();
+      await loadAudit();
     } catch (error) {
       showError(error);
     }
@@ -693,6 +737,27 @@
     }
   }
 
+  async function verifyAuditLog() {
+    try {
+      const result = await api("/admin/audit/verify-log");
+      if (!result.valid) {
+        say("audit-log-result", "error", "Audit log FAILED verification" +
+          (result.first_bad_entry !== undefined ? " at entry #" + result.first_bad_entry : "") +
+          (result.reason ? " (" + result.reason + ")" : "") + ".");
+      } else if (!result.checkpoint) {
+        say("audit-log-result", "warn", "Audit-log chain is valid over " +
+          fmt(result.entries_checked) + " entries, but no signed checkpoint exists; " +
+          "truncation cannot be detected. Sign an audit-log checkpoint.");
+      } else {
+        say("audit-log-result", "ok", "Audit log verified: " + fmt(result.entries_checked) +
+          " entries, checkpoint height " + fmt(result.checkpoint.height) +
+          ", head " + result.head + ".");
+      }
+    } catch (error) {
+      say("audit-log-result", "error", error.message);
+    }
+  }
+
   async function exportLedger() {
     try {
       await download("/admin/audit/export", "evoting-ledger.json");
@@ -738,6 +803,8 @@
   $("export-results-btn").addEventListener("click", exportResults);
   $("refresh-audit").addEventListener("click", loadAudit);
   $("verify-chain-btn").addEventListener("click", verifyVoteChain);
+  $("verify-audit-log-btn").addEventListener("click", verifyAuditLog);
+  $("sign-audit-cp").addEventListener("click", signAuditCheckpoint);
   $("export-ledger-btn").addEventListener("click", exportLedger);
 
   async function boot() {

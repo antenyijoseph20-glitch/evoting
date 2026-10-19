@@ -63,7 +63,16 @@ CREATE TABLE IF NOT EXISTS admin_audit (
     ts TEXT NOT NULL,
     actor TEXT NOT NULL,
     action TEXT NOT NULL,
-    detail TEXT
+    detail TEXT,
+    prev_hash TEXT,
+    entry_hash TEXT
+);
+CREATE TABLE IF NOT EXISTS audit_checkpoints (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    height INTEGER NOT NULL,
+    head_hash TEXT NOT NULL,
+    signature TEXT NOT NULL,
+    created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS officers (
     officer_id TEXT PRIMARY KEY,
@@ -181,6 +190,36 @@ def _migrate(conn: sqlite3.Connection) -> None:
     for name, decl in additions.items():
         if name not in cols:
             conn.execute(f"ALTER TABLE result_sheets ADD COLUMN {name} {decl}")
+
+    audit_exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='admin_audit'").fetchone()
+    if audit_exists:
+        audit_cols = {r["name"] for r in conn.execute("PRAGMA table_info(admin_audit)")}
+        for name in ("prev_hash", "entry_hash"):
+            if name not in audit_cols:
+                conn.execute(f"ALTER TABLE admin_audit ADD COLUMN {name} TEXT")
+        _backfill_audit_chain(conn)
+
+
+def _backfill_audit_chain(conn: sqlite3.Connection) -> None:
+    """Chain entries written before the audit log became tamper-evident.
+
+    The migration runs at startup, before any request; hash the existing rows in
+    insertion order so the log has a single continuous chain from GENESIS.
+    """
+    import audit_log as alog  # lazy: keeps module-level imports free of web app deps
+
+    prev = alog.GENESIS
+    rows = conn.execute("SELECT id, ts, actor, action, detail, entry_hash "
+                        "FROM admin_audit ORDER BY id").fetchall()
+    for r in rows:
+        if r["entry_hash"]:
+            prev = r["entry_hash"]
+            continue
+        h = alog.entry_hash(prev, r["ts"], r["actor"], r["action"], r["detail"] or "")
+        conn.execute("UPDATE admin_audit SET prev_hash=?, entry_hash=? WHERE id=?",
+                     (prev, h, r["id"]))
+        prev = h
 
 
 def init_db() -> None:
