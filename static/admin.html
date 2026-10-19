@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Admin Console — E2E-V</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="page">
+
+  <section id="login-card" class="card hidden" aria-labelledby="h-login">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">NG</div>
+        <div>
+          <h1>E2E-V Admin Console</h1>
+          <p>Staff access &mdash; research prototype</p>
+        </div>
+      </div>
+      <nav class="nav-links"><a href="/">Vote</a><a href="/results">Public results</a></nav>
+    </header>
+    <h2 id="h-login">Staff sign in</h2>
+    <p class="lede">Accounts are created with <span class="mono">python3 manage.py create-admin</span>.</p>
+    <div id="login-alert" class="alert" role="alert"></div>
+    <div class="field">
+      <label for="username">Username</label>
+      <input id="username" autocomplete="username" maxlength="64">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" maxlength="256">
+    </div>
+    <button id="login-btn" class="btn block" type="button">Sign in</button>
+    <p class="note">Sessions expire after 30 minutes. Failed attempts are rate-limited and audited.</p>
+  </section>
+
+  <div id="app" class="hidden">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">NG</div>
+        <div>
+          <h1>E2E-V Admin Console</h1>
+          <p>Election operations &mdash; research prototype</p>
+        </div>
+      </div>
+      <div class="nav-links">
+        <a href="/">Vote</a>
+        <a href="/results">Public results</a>
+        <span id="who" class="badge"></span>
+        <button id="logout-btn" class="btn small secondary" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <nav class="tabs" id="tabs" aria-label="Admin sections">
+      <button type="button" data-tab="overview" class="active">Overview</button>
+      <button type="button" data-tab="elections" data-admin-only>Elections</button>
+      <button type="button" data-tab="voters" data-role="ADMIN REGISTRAR">Voters</button>
+      <button type="button" data-tab="officers" data-admin-only>Officers</button>
+      <button type="button" data-tab="results" data-role="ADMIN AUDITOR">Results</button>
+      <button type="button" data-tab="audit" data-role="ADMIN AUDITOR">Audit</button>
+    </nav>
+
+    <div id="admin-alert" class="alert" role="alert"></div>
+
+    <!-- Overview -->
+    <section class="card" data-panel="overview" aria-labelledby="h-overview">
+      <h2 id="h-overview">Overview</h2>
+      <p class="lede">Live operational status. Chain checks are computed from the stored data on each refresh.</p>
+      <div class="grid-3">
+        <div class="stat"><div class="k">Registered voters</div><div class="v" id="ov-voters">—</div><div class="s">on the register</div></div>
+        <div class="stat"><div class="k">Ballots in ledger</div><div class="v" id="ov-votes">—</div><div class="s">hash-chained votes</div></div>
+        <div class="stat"><div class="k">Open elections</div><div class="v" id="ov-open">—</div><div class="s">accepting ballots</div></div>
+        <div class="stat"><div class="k">Result sheets</div><div class="v" id="ov-sheets">—</div><div class="s">signed submissions</div></div>
+        <div class="stat"><div class="k">Pending reviews</div><div class="v" id="ov-pending">—</div><div class="s">flagged sheets</div></div>
+      </div>
+      <div class="section">
+        <h3>Integrity</h3>
+        <p><strong>Vote ledger:</strong> <span id="ledger-badge" class="badge">—</span></p>
+        <p><strong>Result-sheet chain:</strong> <span id="sheet-badge" class="badge">—</span></p>
+        <p><strong>Result-sheet checkpoint:</strong> <span id="result-cp-badge" class="badge">—</span></p>
+        <div id="ov-checkpoints" class="receipt"><span class="muted">Loading checkpoints…</span></div>
+      </div>
+      <div class="btn-row">
+        <button id="refresh-overview" class="btn secondary" type="button">Refresh</button>
+        <button id="sign-ledger-cp" class="btn" type="button" data-admin-only>Sign ledger checkpoint</button>
+      </div>
+    </section>
+
+    <!-- Elections -->
+    <section class="card hidden" data-panel="elections" aria-labelledby="h-elections">
+      <h2 id="h-elections">Elections</h2>
+      <p class="lede">Transitions are one-way: PENDING → OPEN → CLOSED. Results stay sealed until an election is CLOSED.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Election</th><th>Status</th><th class="right">Action</th></tr></thead>
+          <tbody id="elections-body"></tbody>
+        </table>
+      </div>
+      <div class="btn-row"><button id="refresh-elections" class="btn secondary" type="button">Refresh</button></div>
+    </section>
+
+    <!-- Voters -->
+    <section class="card hidden" data-panel="voters" aria-labelledby="h-voters">
+      <h2 id="h-voters">Voters</h2>
+      <p class="lede">Registration stores only a keyed hash of NIN+VIN, the polling unit and a phone number.
+        NIN and VIN are never persisted.</p>
+      <div class="grid-2">
+        <div>
+          <div class="field"><label for="v-nin">NIN</label><input id="v-nin" inputmode="numeric" maxlength="11" placeholder="11 digits"></div>
+          <div class="field"><label for="v-vin">VIN</label><input id="v-vin" maxlength="20" placeholder="6–20 letters or digits"></div>
+          <div class="field"><label for="v-pu">Polling unit code</label><input id="v-pu" maxlength="32" placeholder="e.g. PU-001"></div>
+          <div class="field"><label for="v-phone">Phone number</label><input id="v-phone" maxlength="16" placeholder="+2348012345678"></div>
+          <button id="register-voter-btn" class="btn block" type="button">Register voter</button>
+        </div>
+        <div>
+          <div class="field"><label for="v-filter">Filter by polling unit</label><input id="v-filter" maxlength="32" placeholder="leave blank for latest"></div>
+          <div class="btn-row">
+            <button id="load-voters-btn" class="btn secondary" type="button">Load voters</button>
+          </div>
+          <p class="note">Only a short reference, polling unit and masked phone are returned.</p>
+        </div>
+      </div>
+      <div class="section">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Ref</th><th>Polling unit</th><th>Phone</th></tr></thead>
+            <tbody id="voters-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Officers -->
+    <section class="card hidden" data-panel="officers" aria-labelledby="h-officers">
+      <h2 id="h-officers">Polling-unit officers</h2>
+      <p class="lede">Officers generate their own Ed25519 key with
+        <span class="mono">python3 tools/results_cli.py keygen</span>. Register only the public key here.
+        The server never holds an officer private key.</p>
+      <div class="grid-2">
+        <div class="field"><label for="o-id">Officer ID</label><input id="o-id" maxlength="64" placeholder="e.g. PO-001"></div>
+        <div class="field"><label for="o-name">Full name</label><input id="o-name" maxlength="120"></div>
+        <div class="field"><label for="o-role">Role</label>
+          <select id="o-role"><option value="PRESIDING_OFFICER">Presiding officer</option><option value="PARTY_AGENT">Party agent</option></select>
+        </div>
+        <div class="field"><label for="o-pu">Polling unit code</label><input id="o-pu" maxlength="32" placeholder="e.g. PU-001"></div>
+        <div class="field hidden" id="o-party-field"><label for="o-party">Party code</label>
+          <select id="o-party"></select>
+        </div>
+        <div class="field"><label for="o-key">Public key (64 hex)</label><input id="o-key" class="mono" maxlength="64" placeholder="from results_cli.py keygen"></div>
+      </div>
+      <button id="add-officer-btn" class="btn" type="button">Register officer</button>
+      <div class="section">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Officer</th><th>Role</th><th>PU</th><th>Party</th><th>State</th><th class="right">Action</th></tr></thead>
+            <tbody id="officers-body"></tbody>
+          </table>
+        </div>
+        <div class="btn-row"><button id="refresh-officers" class="btn secondary" type="button">Refresh</button></div>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section class="card hidden" data-panel="results" aria-labelledby="h-results-admin">
+      <h2 id="h-results-admin">Polling-unit result sheets</h2>
+      <p class="lede">Flagged sheets are excluded from the tally until an ADMIN accepts or voids them.
+        Every decision is audited.</p>
+      <div class="field">
+        <label for="res-election">Filter by election</label>
+        <select id="res-election"><option value="">All elections</option></select>
+      </div>
+      <div class="btn-row">
+        <button id="load-results-btn" class="btn secondary" type="button">Load sheets</button>
+        <button id="refresh-results-btn" class="btn secondary" type="button">Refresh</button>
+        <button id="sign-result-cp" class="btn" type="button" data-admin-only>Sign result-sheet checkpoint</button>
+        <button id="export-results-btn" class="btn secondary" type="button">Download archive</button>
+      </div>
+      <div id="result-cp" class="receipt"><span class="muted">Loading result checkpoint…</span></div>
+      <div id="admin-tally" class="section"></div>
+      <div class="section">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Election / PU</th><th>Officer</th><th>Flags</th><th>Review</th><th>Countersigns</th><th>Action</th></tr></thead>
+            <tbody id="results-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Audit -->
+    <section class="card hidden" data-panel="audit" aria-labelledby="h-audit">
+      <h2 id="h-audit">Audit trail</h2>
+      <p class="lede">Administrative actions and officer submissions, newest first.</p>
+      <div class="btn-row">
+        <button id="refresh-audit" class="btn secondary" type="button">Refresh</button>
+        <button id="verify-chain-btn" class="btn secondary" type="button">Verify vote chain</button>
+        <button id="export-ledger-btn" class="btn secondary" type="button">Download ledger</button>
+        <button id="sign-ledger-cp-2" class="btn" type="button" data-admin-only>Sign ledger checkpoint</button>
+      </div>
+      <div id="chain-result" class="alert" role="alert"></div>
+      <div class="section">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Detail</th></tr></thead>
+            <tbody id="audit-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <footer class="foot">Research prototype &mdash; not an INEC system. Start with one worker; rate limits are per process.</footer>
+  </div>
+</div>
+<script src="/static/js/admin.js"></script>
+</body>
+</html>

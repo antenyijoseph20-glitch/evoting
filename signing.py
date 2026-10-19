@@ -40,7 +40,10 @@ def public_hex(priv: Ed25519PrivateKey) -> str:
 
 
 def load_private(pem: bytes) -> Ed25519PrivateKey:
-    return serialization.load_pem_private_key(pem, password=None)
+    key = serialization.load_pem_private_key(pem, password=None)
+    if not isinstance(key, Ed25519PrivateKey):
+        raise ValueError("private key is not Ed25519")
+    return key
 
 
 def sign(priv: Ed25519PrivateKey, msg: bytes) -> str:

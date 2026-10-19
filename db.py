@@ -1,4 +1,5 @@
 """SQLite access. Every write path uses BEGIN IMMEDIATE so check-then-write is atomic."""
+import os
 import sqlite3
 import contextlib
 from config import DB_PATH, ELECTION_PARTIES
@@ -21,6 +22,12 @@ CREATE TABLE IF NOT EXISTS sessions (
     otp_verified INTEGER NOT NULL DEFAULT 0,
     face_attempts INTEGER NOT NULL DEFAULT 0,
     face_verified INTEGER NOT NULL DEFAULT 0
+);
+-- Separate from sessions: a voter who keeps restarting still hits the hourly cap.
+CREATE TABLE IF NOT EXISTS voter_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    voter_id INTEGER NOT NULL REFERENCES voters(id),
+    created_at TEXT NOT NULL
 );
 -- No timestamp and no rowid: the insertion order of votes cannot be matched to the ledger.
 CREATE TABLE IF NOT EXISTS votes_cast (
@@ -78,6 +85,10 @@ CREATE TABLE IF NOT EXISTS result_sheets (
     flags TEXT NOT NULL DEFAULT '',
     previous_hash TEXT NOT NULL,
     block_hash TEXT NOT NULL,
+    review_status TEXT NOT NULL DEFAULT 'PENDING',
+    reviewed_by TEXT,
+    reviewed_at TEXT,
+    review_note TEXT,
     UNIQUE (election_type, polling_unit_code)
 );
 CREATE TABLE IF NOT EXISTS countersignatures (
@@ -93,6 +104,18 @@ CREATE TABLE IF NOT EXISTS checkpoints (
     signature TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS ledger_checkpoints (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    height INTEGER NOT NULL,
+    head_hash TEXT NOT NULL,
+    signature TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_block_hash ON ledger(block_hash);
+CREATE INDEX IF NOT EXISTS idx_result_sheets_review ON result_sheets(election_type, review_status);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_ts ON admin_audit(ts);
+CREATE INDEX IF NOT EXISTS idx_voters_pu ON voters(polling_unit_code);
+CREATE INDEX IF NOT EXISTS idx_voter_attempts ON voter_attempts(voter_id, created_at);
 """
 
 def connect() -> sqlite3.Connection:
@@ -123,18 +146,55 @@ def tx():
 
 @contextlib.contextmanager
 def read():
+    """Consistent read snapshot.
+
+    Several endpoints read a chain and its checkpoint (or rows and counts) and then
+    compare them. Without an explicit transaction each SELECT could see a different
+    commit, producing a spurious "truncated ledger" alarm while a vote or
+    checkpoint is being written. BEGIN gives one snapshot for the whole block.
+    """
     conn = connect()
     try:
+        conn.execute("BEGIN")
         yield conn
     finally:
+        try:
+            conn.execute("ROLLBACK")
+        except sqlite3.Error:
+            pass
         conn.close()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Bring databases created by older versions up to the current schema.
+
+    CREATE TABLE IF NOT EXISTS never adds columns to an existing table, so additive
+    migrations are applied explicitly and idempotently.
+    """
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(result_sheets)")}
+    additions = {
+        "review_status": "TEXT NOT NULL DEFAULT 'PENDING'",
+        "reviewed_by": "TEXT",
+        "reviewed_at": "TEXT",
+        "review_note": "TEXT",
+    }
+    for name, decl in additions.items():
+        if name not in cols:
+            conn.execute(f"ALTER TABLE result_sheets ADD COLUMN {name} {decl}")
 
 
 def init_db() -> None:
     conn = connect()
     try:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         for etype in ELECTION_PARTIES:
             conn.execute("INSERT OR IGNORE INTO elections (election_type) VALUES (?)", (etype,))
+        # SQLite has no file-permission model. The database holds voter hashes,
+        # sessions and results, so keep it readable only by the service account.
+        try:
+            os.chmod(DB_PATH, 0o600)
+        except OSError:
+            pass
     finally:
         conn.close()

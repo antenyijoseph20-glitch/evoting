@@ -1,6 +1,9 @@
 """Voter-facing API. Every step is enforced server-side."""
+import re
 import sqlite3
 from contextlib import asynccontextmanager
+from datetime import timedelta
+from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
@@ -10,9 +13,14 @@ from pydantic import BaseModel, Field
 import config
 import db
 import ledger
+import results_core as rc
 import security as sec
 from admin import router as admin_router
 from results import router as results_router
+
+HEX64 = re.compile(r"^[0-9a-f]{64}$")
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
 
 
 @asynccontextmanager
@@ -21,9 +29,12 @@ async def lifespan(app: FastAPI):
         blockers = config.production_blockers()
         if blockers:
             raise RuntimeError("Refusing to start in production:\n - " + "\n - ".join(blockers))
+        try:
+            sec.load_face_matcher()
+        except Exception as e:
+            raise RuntimeError(f"EVOTING_FACE_MATCHER could not be loaded: {e}")
     db.init_db()
-    import results_core
-    results_core.authority_key()  # load or create once, fail early if missing in production
+    rc.authority_key()  # load or create once, fail early if missing in production
     yield
 
 
@@ -31,7 +42,7 @@ app = FastAPI(title="E2E-V Voting System (research prototype)", version="3.0.0",
               docs_url="/docs" if config.DEV else None, redoc_url=None)
 app.include_router(admin_router)
 app.include_router(results_router)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.middleware("http")
@@ -43,8 +54,9 @@ async def security_headers(request: Request, call_next):
     resp.headers["Cache-Control"] = "no-store"
     resp.headers["Permissions-Policy"] = "camera=(self)"
     resp.headers["Content-Security-Policy"] = (
-        "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
-        "img-src 'self' blob: data:; frame-ancestors 'none'")
+        "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; "
+        "connect-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; "
+        "form-action 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'")
     if not config.DEV:
         resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return resp
@@ -77,7 +89,78 @@ def load_session(conn, token: str):
 # ---------- routes ----------
 @app.get("/")
 def index():
-    return FileResponse("static/index.html")
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/admin")
+def admin_page():
+    return FileResponse(STATIC_DIR / "admin.html")
+
+
+@app.get("/results")
+def results_page():
+    return FileResponse(STATIC_DIR / "results.html")
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+
+@app.get("/readyz")
+def readyz():
+    try:
+        with db.read() as c:
+            c.execute("SELECT 1").fetchone()
+    except sqlite3.Error:
+        raise HTTPException(503, "Database unavailable.")
+    return {"status": "ready"}
+
+
+@app.get("/api/v1/elections")
+def public_elections():
+    with db.read() as c:
+        status = {r["election_type"]: r["status"] for r in c.execute("SELECT * FROM elections")}
+    return {"elections": [
+        {"election_type": t, "name": config.ELECTION_NAMES.get(t, t),
+         "status": status.get(t, "PENDING"),
+         "parties": [{"code": p, "name": config.PARTY_NAMES.get(p, p)} for p in parties]}
+        for t, parties in config.ELECTION_PARTIES.items()]}
+
+
+@app.get("/api/v1/receipt/{block_hash}")
+def verify_receipt(block_hash: str):
+    """Public proof that a cast-ballot receipt exists in the chain. No voter data is stored."""
+    block_hash = block_hash.lower()
+    if not HEX64.match(block_hash):
+        raise HTTPException(400, "Receipt hash must be 64 lowercase hex characters.")
+    with db.read() as c:
+        block = c.execute("SELECT * FROM ledger WHERE block_hash=?", (block_hash,)).fetchone()
+        if not block:
+            raise HTTPException(404, "No ledger block matches this receipt.")
+        rows = c.execute("SELECT * FROM ledger ORDER BY block_index").fetchall()
+        cp = rc.latest_ledger_checkpoint(c)
+        check = rc.verify_ledger_chain(c, rows)
+    return {"found": True, "block": dict(block), "chain": check,
+            "latest_checkpoint": dict(cp) if cp else None,
+            "authority_public_key": rc.authority_public_hex() if cp else None}
+
+
+@app.get("/api/v1/audit/ledger")
+def public_ledger():
+    """Publish vote blocks only for CLOSED elections, so partial results cannot be tallied early."""
+    with db.read() as c:
+        closed = {r["election_type"] for r in
+                  c.execute("SELECT election_type FROM elections WHERE status='CLOSED'")}
+        rows = c.execute("SELECT * FROM ledger ORDER BY block_index").fetchall()
+        cp = rc.latest_ledger_checkpoint(c)
+        check = rc.verify_ledger_chain(c, rows)
+    visible = [dict(r) for r in rows if r["election_type"] in closed]
+    return {"blocks": visible, "visible_blocks": len(visible), "ledger_height": len(rows),
+            "chain": check, "checkpoint": dict(cp) if cp else None,
+            "authority_public_key": rc.authority_public_hex() if cp else None,
+            "note": "Only blocks from CLOSED elections are published."}
+
 
 
 @app.post("/api/v1/auth/verify")
@@ -91,16 +174,28 @@ def verify(payload: VerifyRequest, request: Request):
         v = c.execute("SELECT id, phone_number FROM voters WHERE voter_hash=?", (vh,)).fetchone()
         if not v:
             raise HTTPException(401, "Voter not found on the register.")
-        recent = c.execute("SELECT COUNT(*) FROM sessions WHERE voter_id=? AND created_at > ?",
-                           (v["id"], sec.iso(sec.now_utc().replace(microsecond=0) - sec.timedelta(hours=1)))).fetchone()[0]
+        now = sec.now_utc()
+        c.execute("DELETE FROM sessions WHERE expires_at <= ?", (sec.iso(now),))
+        cutoff = sec.iso(now.replace(microsecond=0) - timedelta(hours=1))
+        c.execute("DELETE FROM voter_attempts WHERE created_at <= ?", (cutoff,))
+        recent = c.execute("SELECT COUNT(*) FROM voter_attempts WHERE voter_id=?",
+                           (v["id"],)).fetchone()[0]
         if recent >= config.MAX_SESSIONS_PER_VOTER_PER_HOUR:
             raise HTTPException(429, "Too many attempts for this voter. Contact the polling officer.")
+        c.execute("INSERT INTO voter_attempts (voter_id, created_at) VALUES (?,?)",
+                  (v["id"], sec.iso(now)))
         c.execute("DELETE FROM sessions WHERE voter_id=?", (v["id"],))  # one live session per voter
         c.execute("INSERT INTO sessions (token_hash, voter_id, created_at, expires_at, otp_hash, otp_expires_at) "
                   "VALUES (?,?,?,?,?,?)",
-                  (th, v["id"], sec.iso(sec.now_utc()), sec.in_minutes(config.SESSION_TTL_MIN),
+                  (th, v["id"], sec.iso(now), sec.in_minutes(config.SESSION_TTL_MIN),
                    sec.otp_hash(th, otp), sec.in_minutes(config.OTP_TTL_MIN)))
-    sec.send_sms(v["phone_number"], otp)
+    try:
+        sec.send_sms(v["phone_number"], otp)
+    except sec.SmsDeliveryError:
+        # Do not leave a live session the voter cannot complete; they may retry immediately.
+        with db.tx() as c:
+            c.execute("DELETE FROM sessions WHERE token_hash=?", (th,))
+        raise HTTPException(503, "Could not send the one-time code. Please try again.")
     return {"status": "otp_sent", "session_token": token, "phone": sec.mask_phone(v["phone_number"]),
             "otp_expires_in_seconds": config.OTP_TTL_MIN * 60}
 

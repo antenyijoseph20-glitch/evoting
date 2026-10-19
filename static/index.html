@@ -3,125 +3,114 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>E2E-V Voting Portal (research prototype)</title>
-<style>
-:root{--g:#008751;--gd:#00663b;--bg:#eaf4ef;--bd:#bce3cc}
-body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);margin:0;padding:20px;display:flex;justify-content:center;min-height:100vh;align-items:center;color:#2c3e50}
-.c{width:100%;max-width:560px;background:#fff;padding:28px;border-radius:12px;border-top:6px solid var(--g);box-shadow:0 8px 24px rgba(0,135,81,.15)}
-h1{color:var(--g);text-align:center;font-size:22px;margin:0 0 4px}
-.sub{text-align:center;color:#555;font-size:13px;margin-bottom:18px}
-.card{background:#f2f9f5;border:1px solid var(--bd);padding:18px;border-radius:8px}
-h3{margin:0 0 12px;color:var(--gd);font-size:16px}
-label{display:block;font-weight:600;font-size:13px;margin:10px 0 4px}
-input,select{width:100%;padding:10px;border:1px solid #a3d9bc;border-radius:6px;font-size:14px;box-sizing:border-box}
-button{margin-top:14px;background:var(--g);color:#fff;border:0;padding:12px;width:100%;border-radius:6px;font-weight:600;cursor:pointer}
-button:hover{background:var(--gd)} button:disabled{opacity:.5;cursor:wait}
-video{width:100%;border-radius:6px;background:#000;max-height:260px}
-.hide{display:none}
-#msg{margin-top:14px;padding:10px;border-radius:6px;font-size:14px;display:none}
-.err{background:#fde8e8;color:#c0392b;border:1px solid #f5c6c6}
-.ok{background:#e6f4ed;color:var(--gd);border:1px solid var(--bd)}
-.note{font-size:12px;color:#777;text-align:center;margin-top:14px}
-</style>
+<meta name="color-scheme" content="light">
+<title>E2E-V Voting Portal</title>
+<link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
-<div class="c">
-  <h1>🇳🇬 E2E-V Voting Portal</h1>
-  <div class="sub">Research prototype &mdash; not an INEC system</div>
+<div class="page narrow">
 
-  <div id="s1" class="card">
-    <h3>Step 1: Identity</h3>
-    <label for="nin">NIN (11 digits)</label>
-    <input id="nin" inputmode="numeric" maxlength="11" autocomplete="off">
-    <label for="vin">VIN</label>
-    <input id="vin" maxlength="20" autocomplete="off">
-    <button id="b1">Send OTP</button>
-  </div>
+  <header class="topbar">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">NG</div>
+      <div>
+        <h1>E2E-V Voting Portal</h1>
+        <p>Research prototype &mdash; not an INEC system</p>
+      </div>
+    </div>
+    <nav class="nav-links" aria-label="Site">
+      <a href="/results">Public results</a>
+    </nav>
+  </header>
 
-  <div id="s2" class="card hide">
-    <h3>Step 2: One-time code</h3>
-    <p id="otpHint" style="font-size:13px"></p>
-    <input id="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6-digit code">
-    <button id="b2">Verify code</button>
-  </div>
+  <ol class="steps" id="steps" aria-label="Voting progress">
+    <li data-step="1" class="active">Identity</li>
+    <li data-step="2">Code</li>
+    <li data-step="3">Face</li>
+    <li data-step="4">Ballot</li>
+    <li data-step="5">Receipt</li>
+  </ol>
 
-  <div id="s3" class="card hide">
-    <h3>Step 3: Face verification</h3>
-    <video id="cam" autoplay playsinline muted></video>
-    <canvas id="snap" class="hide"></canvas>
-    <button id="b3">Capture &amp; verify</button>
-  </div>
+  <section id="panel-1" class="card" aria-labelledby="h-1">
+    <h2 id="h-1">Step 1 &mdash; Identity</h2>
+    <p class="lede">Enter the NIN and VIN on the voter register. A polling officer must register you before you can vote.</p>
+    <div id="alert-1" class="alert" role="alert"></div>
+    <div class="field">
+      <label for="nin">National Identification Number (NIN)</label>
+      <input id="nin" inputmode="numeric" maxlength="11" autocomplete="off" placeholder="11 digits">
+      <div class="hint">Exactly 11 digits.</div>
+    </div>
+    <div class="field">
+      <label for="vin">Voter Identification Number (VIN)</label>
+      <input id="vin" maxlength="20" autocomplete="off" placeholder="e.g. NG12345678">
+    </div>
+    <button id="btn-verify" class="btn block" type="button">Send one-time code</button>
+  </section>
 
-  <div id="s4" class="card hide">
-    <h3>Step 4: Cast ballot</h3>
-    <label for="tier">Election</label>
-    <select id="tier">
-      <option value="PRESIDENTIAL">Presidential</option><option value="GOVERNOR">Governorship</option>
-      <option value="SENATE">Senatorial</option><option value="HOUSE_OF_REPS">House of Representatives</option>
-      <option value="HOUSE_OF_ASSEMBLY">House of Assembly</option>
-    </select>
-    <label for="party">Party</label>
-    <select id="party">
-      <option>APC</option><option>PDP</option><option>LP</option><option>NNPP</option>
-      <option>APGA</option><option>AAC</option><option>ADC</option><option>PRP</option>
-    </select>
-    <button id="b4">Submit vote</button>
-  </div>
+  <section id="panel-2" class="card hidden" aria-labelledby="h-2">
+    <h2 id="h-2">Step 2 &mdash; One-time code</h2>
+    <p class="lede" id="otp-lede">A six-digit code was sent to your registered phone.</p>
+    <div id="alert-2" class="alert" role="alert"></div>
+    <div class="field">
+      <label for="otp">One-time code</label>
+      <input id="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code"
+             placeholder="6 digits" style="letter-spacing:0.35em;text-align:center;font-size:20px">
+    </div>
+    <div class="btn-row">
+      <button id="btn-resend" class="btn secondary" type="button">Resend code</button>
+      <button id="btn-otp" class="btn" type="button">Verify code</button>
+    </div>
+    <p class="note">The code expires after 5 minutes. Three incorrect attempts end the session.</p>
+  </section>
 
-  <div id="msg"></div>
-  <div class="note">Session is held in memory only and expires after 15 minutes.</div>
+  <section id="panel-3" class="card hidden" aria-labelledby="h-3">
+    <h2 id="h-3">Step 3 &mdash; Face check</h2>
+    <p class="lede">Look straight at the camera in even lighting. Only one face should be visible.</p>
+    <div id="alert-3" class="alert" role="alert"></div>
+    <div class="camera-wrap"><video id="cam" autoplay playsinline muted></video></div>
+    <canvas id="snap" class="hidden"></canvas>
+    <button id="btn-capture" class="btn block" type="button">Capture &amp; verify</button>
+    <hr class="sep">
+    <div class="field">
+      <label for="photo">No camera? Upload a clear photo instead</label>
+      <input id="photo" type="file" accept="image/*">
+    </div>
+    <p class="note">Development builds only check that exactly one face is present. Production requires a
+      vendor-backed matcher with liveness; the app refuses to start without one.</p>
+  </section>
+
+  <section id="panel-4" class="card hidden" aria-labelledby="h-4">
+    <h2 id="h-4">Step 4 &mdash; Cast ballot</h2>
+    <p class="lede">Choose the election and party. You get one vote per election and it cannot be changed.</p>
+    <div id="alert-4" class="alert" role="alert"></div>
+    <div class="field">
+      <label for="election">Election</label>
+      <select id="election"></select>
+      <div class="hint" id="election-hint">Only elections currently open are listed.</div>
+    </div>
+    <div class="field">
+      <label for="party">Party</label>
+      <select id="party"></select>
+    </div>
+    <button id="btn-cast" class="btn block" type="button">Submit vote</button>
+  </section>
+
+  <section id="panel-5" class="card hidden" aria-labelledby="h-5">
+    <h2 id="h-5">Vote recorded</h2>
+    <p class="lede">Keep this receipt. It proves your ballot is in the public ledger without identifying you.</p>
+    <div class="receipt" id="receipt"></div>
+    <div class="btn-row">
+      <button id="btn-check" class="btn" type="button">Verify receipt</button>
+      <a class="btn secondary" href="/results" style="text-decoration:none">Public results</a>
+    </div>
+    <div id="alert-5" class="alert" role="alert"></div>
+    <p class="note">Your identity is never stored next to your vote in the ledger.</p>
+  </section>
+
+  <footer class="foot">
+    Session is held in memory only and expires after 15 minutes.
+  </footer>
 </div>
-
-<script>
-let token = null, stream = null;
-const $ = id => document.getElementById(id);
-function show(n){ for (const i of [1,2,3,4]) $('s'+i).classList.toggle('hide', i!==n); }
-function say(text, ok){ const m=$('msg'); m.textContent=text; m.className=ok?'ok':'err'; m.style.display='block'; }
-function errText(d){ if(!d) return 'Request failed.'; if(typeof d.detail==='string') return d.detail;
-  if(Array.isArray(d.detail)) return d.detail.map(e=>e.msg).join(', '); return 'Request failed.'; }
-async function call(btn, url, opts){
-  btn.disabled = true; $('msg').style.display='none';
-  try{
-    const r = await fetch(url, opts); const d = await r.json().catch(()=>null);
-    if(!r.ok) throw new Error(errText(d));
-    return d;
-  }catch(e){ say(e.message,false); return null; } finally{ btn.disabled=false; }
-}
-const auth = () => ({'Authorization':'Bearer '+token});
-
-$('b1').onclick = async () => {
-  const d = await call($('b1'), '/api/v1/auth/verify', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({nin:$('nin').value.trim(), vin:$('vin').value.trim()})});
-  if(!d) return;
-  token = d.session_token; $('nin').value=''; $('vin').value='';
-  $('otpHint').textContent = 'Code sent to ' + d.phone + '. It expires in ' + (d.otp_expires_in_seconds/60) + ' minutes.';
-  show(2);
-};
-$('b2').onclick = async () => {
-  const d = await call($('b2'), '/api/v1/auth/verify-otp', {method:'POST',
-    headers:{'Content-Type':'application/json', ...auth()}, body: JSON.stringify({otp_code:$('otp').value.trim()})});
-  if(!d) return;
-  show(3);
-  try{ stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}, audio:false}); $('cam').srcObject = stream; }
-  catch(e){ say('Camera access is required for face verification.', false); }
-};
-$('b3').onclick = async () => {
-  const v=$('cam'); if(!v.videoWidth){ say('Camera not ready.', false); return; }
-  const c=$('snap'); c.width=v.videoWidth; c.height=v.videoHeight; c.getContext('2d').drawImage(v,0,0);
-  const blob = await new Promise(r=>c.toBlob(r,'image/jpeg',0.9));
-  const fd = new FormData(); fd.append('file', blob, 'snapshot.jpg');
-  const d = await call($('b3'), '/api/v1/biometric/verify-face', {method:'POST', headers:auth(), body:fd});
-  if(!d) return;
-  if(stream) stream.getTracks().forEach(t=>t.stop());
-  say('Verified.', true); show(4);
-};
-$('b4').onclick = async () => {
-  const d = await call($('b4'), '/api/v1/ballot/cast', {method:'POST',
-    headers:{'Content-Type':'application/json', ...auth()},
-    body: JSON.stringify({election_type:$('tier').value, party_code:$('party').value})});
-  if(!d) return;
-  say('Vote recorded. Receipt: block #' + d.receipt.block_index + ', ' + d.receipt.block_hash.slice(0,16) + '…', true);
-};
-</script>
+<script src="/static/js/voter.js"></script>
 </body>
 </html>

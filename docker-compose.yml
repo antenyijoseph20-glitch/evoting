@@ -1,19 +1,41 @@
-version: '3.8'
-
+# Pilot deployment: one process, one volume, one worker.
+# Copy .env.example to .env and fill in the values before `docker compose up`.
+#
+# Development (default):
+#   docker compose up --build
+#
+# Production/pilot (startup fails closed unless SMS, a face matcher, an HMAC
+# secret and an authority key file are configured; see docs/NATIONAL_READINESS.md):
+#   EVOTING_ENV=production docker compose up --build -d
+#
+# Rate limiting and the development OTP printer are per-process, and SQLite has a
+# single writer, so do not raise --workers without moving both out of process.
 services:
-  evoting-core:
+  evoting:
     build: .
-    container_name: evoting-core-server
+    image: evoting-pilot:latest
+    container_name: evoting-pilot
     restart: unless-stopped
     ports:
-      - "8000:8000"
-    volumes:
-      - .:/app
-      - evoting_data:/app/data
+      - "${EVOTING_BIND:-127.0.0.1}:8000:8000"
+    env_file:
+      # Optional: every EVOTING_* value in .env is passed into the container.
+      - path: .env
+        required: false
     environment:
-      - ENVIRONMENT=production
-      - DB_NAME=evoting.db
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      EVOTING_ENV: ${EVOTING_ENV:-development}
+      EVOTING_DB: /app/data/evoting.db
+      # Always inside the mounted volume: the container user cannot write the
+      # image's /app directory, and a host path would not exist in the container.
+      EVOTING_AUTHORITY_KEY: /app/data/authority_ed25519.key
+    volumes:
+      - evoting_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
 volumes:
   evoting_data:

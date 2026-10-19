@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Public Results &amp; Verification — E2E-V</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">NG</div>
+      <div>
+        <h1>Public Results &amp; Verification</h1>
+        <p>E2E-V research prototype &mdash; independent checks, no login</p>
+      </div>
+    </div>
+    <nav class="nav-links" aria-label="Site">
+      <a href="/">Vote</a>
+      <a href="/admin">Admin</a>
+    </nav>
+  </header>
+
+  <section class="card" aria-labelledby="h-results">
+    <h2 id="h-results">Election results</h2>
+    <p class="lede">Vote totals are released only after an election closes. While voting is open, only
+      operational submission counts are shown.</p>
+    <div class="field">
+      <label for="election">Election</label>
+      <select id="election"></select>
+    </div>
+    <div id="election-status" aria-live="polite"></div>
+
+    <div id="live-section" class="hidden section">
+      <div class="grid-3">
+        <div class="stat"><div class="k">Sheets submitted</div><div class="v" id="live-sheets">0</div><div class="s">polling-unit result sheets</div></div>
+        <div class="stat"><div class="k">Flagged sheets</div><div class="v" id="live-flagged">0</div><div class="s">integrity checks failed</div></div>
+        <div class="stat"><div class="k">Pending review</div><div class="v" id="live-pending">0</div><div class="s">awaiting an audited decision</div></div>
+      </div>
+      <p class="chart-note" id="live-note"></p>
+    </div>
+
+    <div id="tally-section" class="hidden">
+      <div class="hero">
+        <div class="k">Total votes counted</div>
+        <div class="v" id="hero-value">0</div>
+        <div class="s" id="hero-sub"></div>
+      </div>
+      <div class="grid-3">
+        <div class="stat"><div class="k">Sheets counted</div><div class="v" id="stat-sheets">0</div><div class="s">accepted polling units</div></div>
+        <div class="stat"><div class="k">Accredited voters</div><div class="v" id="stat-accredited">0</div><div class="s">in counted sheets</div></div>
+        <div class="stat"><div class="k">Parties with votes</div><div class="v" id="stat-parties">0</div><div class="s">non-zero tallies</div></div>
+      </div>
+
+      <div class="section">
+        <h3>Votes by party</h3>
+        <div class="chart" id="tally-chart" role="img" aria-label="Vote totals by party"></div>
+        <div class="chart-tip" id="chart-tip" role="status"></div>
+        <p class="chart-note">Bar length is the party's share of all counted votes. Values are also in the table view.</p>
+      </div>
+
+      <details class="table-view">
+        <summary>Table view</summary>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Party</th><th>Name</th><th class="right">Votes</th><th class="right">Share</th></tr></thead>
+            <tbody id="tally-table-body"></tbody>
+          </table>
+        </div>
+      </details>
+
+      <div id="tally-notes"></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="h-proof">
+    <h2 id="h-proof">Verify the result</h2>
+    <p class="lede">Every polling-unit sheet is signed by its presiding officer and committed into a
+      Merkle tree. The tree root is signed by the election authority.</p>
+
+    <div class="section">
+      <h3>Latest signed checkpoint</h3>
+      <div id="checkpoint-body" class="receipt"><span class="muted">Loading checkpoint…</span></div>
+    </div>
+
+    <hr class="sep">
+
+    <div class="section">
+      <h3>Merkle inclusion proof</h3>
+      <div class="field">
+        <label for="proof-pu">Polling unit code</label>
+        <input id="proof-pu" placeholder="e.g. PU-001" autocomplete="off">
+      </div>
+      <button id="proof-btn" class="btn" type="button">Fetch inclusion proof</button>
+      <div id="proof-result" class="receipt hidden"></div>
+    </div>
+
+    <hr class="sep">
+
+    <p class="note">For the strongest check, download the full archive and run
+      <span class="mono">python3 verify_offline.py export.json --authority-key &lt;published key&gt;</span>
+      on a machine you trust. The public archive unlocks once no election is open.</p>
+    <p><a id="export-link" class="btn secondary" href="/results/export" style="text-decoration:none">Download verification archive</a></p>
+    <div id="export-note" class="alert" role="alert"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-ledger">
+    <h2 id="h-ledger">Public vote ledger</h2>
+    <p class="lede">Each ballot is appended to a SHA-256 hash chain. Only blocks from closed elections
+      are published, so partial turnout cannot be tallied early.</p>
+    <div id="ledger-summary" class="grid-3"></div>
+    <p class="chart-note" id="ledger-note"></p>
+    <details class="table-view" open>
+      <summary>Blocks</summary>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Election</th><th>Party</th><th>Polling unit</th><th>Block hash</th></tr></thead>
+          <tbody id="ledger-table-body"></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section class="card" aria-labelledby="h-receipt">
+    <h2 id="h-receipt">Verify your receipt</h2>
+    <p class="lede">Paste the block hash from your voting receipt. No identity is stored against a vote.</p>
+    <div class="field">
+      <label for="receipt-hash">Receipt block hash</label>
+      <input id="receipt-hash" class="mono" maxlength="64" placeholder="64 hexadecimal characters" autocomplete="off">
+    </div>
+    <button id="receipt-btn" class="btn" type="button">Verify receipt</button>
+    <div id="receipt-result" class="alert" role="alert"></div>
+  </section>
+
+  <footer class="foot">Research prototype &mdash; not an INEC system. Results are only meaningful with independently verified archives.</footer>
+</div>
+<script src="/static/js/results.js"></script>
+</body>
+</html>
